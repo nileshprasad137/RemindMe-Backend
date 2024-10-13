@@ -1,0 +1,11 @@
+python-dotenv # For reading environment variables stored in .env file
+langchain
+langchain-community
+langchain-openai # For embeddings
+unstructured # Document loading
+# onnxruntime==1.17.1 # chromadb dependency: on Mac use `conda install onnxruntime -c conda-forge`
+# For Windows users, install Microsoft Visual C++ Build Tools first
+# install onnxruntime before installing `chromadb`
+chromadb # Vector storage
+openai # For embeddings
+tiktoken  # For embeddings 
