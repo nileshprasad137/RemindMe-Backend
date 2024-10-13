@@ -20,7 +20,8 @@ def main():
     generate_data_store()
     # parsed_data = {'task': 'exercise', 'frequency': 'every 3 days', 'days_of_week': [], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
     # parsed_data = {'task': 'wish hbd', 'frequency': 'one-time', 'days_of_week': [], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
-    parsed_data ={'task': 'exercise', 'frequency': 'weekly', 'days_of_week': ['Monday', 'Wednesday'], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
+    # parsed_data ={'task': 'exercise', 'frequency': 'weekly', 'days_of_week': ['Monday', 'Wednesday'], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
+    parsed_data = {'task': 'visit doctor', 'frequency': 'monthly', 'days_of_week': [], 'time': '11:00 AM', 'context': '', 'tags': ['health'], 'start_date': '14-10-2024'}
     generate_eventbridge_expression(
         task=parsed_data['task'],
         start_date=parsed_data['start_date'],

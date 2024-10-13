@@ -180,3 +180,9 @@ Consider a schedule created with the following cron expression in `America/Los_A
 - **Fall-back**: When time shifts from 2:59 a.m. to 2:00 a.m., the schedule runs at 2:30 a.m. before the time shift, but does not repeat the invocation after the time shift.
 
 For rate-based schedules with days as the unit, such as `rate(1 day)`, EventBridge Scheduler interprets days as 24-hour durations on the clock.
+
+### Note on DAYS
+
+Day-of-week can be represented by numeric values 1-7 (1 - Sunday, 2 - Monday, 3 - Tuesday, 4-Wednesday, 5-Thursday, 6-Friday 7 for Saturday) or strings (SUN-SAT).
+
+
