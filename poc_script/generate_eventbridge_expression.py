@@ -83,7 +83,8 @@ if __name__ == "__main__":
     # parsed_data = {'task': 'exercise', 'frequency': 'once', 'days_of_week': [], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
     # parsed_data = {'task': 'exercise', 'frequency': 'alternate days', 'days_of_week': [], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
     # parsed_data = {'task': 'wish hbd', 'frequency': 'one-time', 'days_of_week': [], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
-    parsed_data ={'task': 'exercise', 'frequency': 'weekly', 'days_of_week': ['Monday', 'Wednesday'], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
+    # parsed_data ={'task': 'exercise', 'frequency': 'weekly', 'days_of_week': ['Monday', 'Wednesday'], 'time': '11:00 AM', 'context': '', 'tags': [], 'start_date': '14-10-2024'}
+    parsed_data = {'task': 'pay cc bill', 'frequency': 'monthly', 'days_of_week': [], 'time': '11:00 AM', 'context': '', 'tags': ['finance'], 'start_date': '20-10-2024'}
     # parsed_data = {'task': 'visit doctor', 'frequency': 'monthly', 'days_of_week': [], 'time': '11:00 AM', 'context': '', 'tags': ['health'], 'start_date': '14-10-2024'}
     generate_eventbridge_expression(
         task=parsed_data['task'],
