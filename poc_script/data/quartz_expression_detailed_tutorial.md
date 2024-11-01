@@ -57,6 +57,7 @@ or more complex, like this: `0/5 14,18,3-39,52 * ? JAN,MAR,SEP MON-FRI 2002-2010
 | `0 15 10 ? * 6#3`    | Fire at 10:15am on the third Friday of every month |
 | `0 0 12 1/5 * ?`     | Fire at 12pm (noon) every 5 days every month, starting on the first day of the month. |
 | `0 11 11 11 11 ?`    | Fire every November 11th at 11:11am. |
+| `0 11 ? * 2,4 2024`    | Fire every Monday and Wednesday at 11:00 AM. |
 
 ### Notes
 
