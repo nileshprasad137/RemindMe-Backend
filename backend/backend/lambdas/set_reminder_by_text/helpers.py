@@ -1,9 +1,9 @@
 import os
 import dateparser
 import parsedatetime
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -11,19 +11,6 @@ from langchain_openai import ChatOpenAI
 
 # Load environment variables from .env
 load_dotenv()
-
-# Set up the OpenAI model
-model = ChatOpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"), model="gpt-3.5-turbo")
-
-day_of_week_map = {
-    1: "Sunday",
-    2: "Monday",
-    3: "Tuesday",
-    4: "Wednesday",
-    5: "Thursday",
-    6: "Friday",
-    7: "Saturday"
-}
 
 def get_ordinal_suffix(day):
     if 11 <= day <= 13:  # Special case for 11th, 12th, and 13th
@@ -56,84 +43,79 @@ class Reminder(BaseModel):
     repeat_frequency: RepeatFrequency = Field(default_factory=RepeatFrequency, description="Repeat frequency settings.")
     tags: List[str] = Field(default_factory=list, description="Tags associated with the reminder for easy categorization.")
 
-# Set up the JSON output parser with the Reminder model
-parser = JsonOutputParser(pydantic_object=Reminder)
 
-# Define the prompt template with enhanced instructions
-prompt = PromptTemplate(
-    template=(
-        "You are a highly intelligent assistant that parses reminder requests with dates, times, and repeat frequencies "
-        "in various formats. Follow these instructions carefully to extract details without introducing additional fields.\n\n"
-        
-        "Instructions:\n"
-        "1. **Interpretation of Dates and Times**:\n"
-        "   - Provide a relative date phrase for 'start_date_phrase' "
-        "   that describes when the reminder should start (e.g., 'tomorrow,' 'next week').\n"
-        "   Try to understand whether the reminder is for a specific day / week or it repeats recurringly."
-        "   Try to extract time at which you need to remind else default to 11am."
-        "2. Populate 'repeat_frequency' directly with integer values if provided, for fields like 'daily', 'weekly', etc.\n"
-        "   - Do not introduce new keys such as 'interval'. Instead, set 'daily': 2 for 'every 2 days'.\n"
-        "3. For specific days, use 'selected_days_of_week' as a list of integers (e.g., [1, 4] for Monday and Thursday), "
-        "and 'selected_days_of_month' as a list of integers for days of the month (e.g., [1, 15]).\n\n"
-        "4. **Tags Extraction**:\n"
-        "   - Identify single or double-word tags from the reminder that represent the main topics or categories.\n\n"
-        
-        "Output the information in structured JSON with fields: task, start_date, end_date, time, repeat_frequency, and tags.\n\n"
-        
-        "{format_instructions}\n\n"
-        
-        "Reminder Text: {query}"
-    ),
-    input_variables=["query"],
-    partial_variables={"format_instructions": parser.get_format_instructions()},
-)
+day_of_week_map = {
+    1: "Sunday",
+    2: "Monday",
+    3: "Tuesday",
+    4: "Wednesday",
+    5: "Thursday",
+    6: "Friday",
+    7: "Saturday"
+}
 
-# Create a chain that combines the prompt, model, and parser
-chain = prompt | model | parser
 
-# Function to process the reminder text using the chain
-def process_reminder_text(reminder_text):
+def get_reminder_schedule_json(reminder_text: str):
+    """ Returns the reminder json with schedule details
+
+    Args:
+        reminder_text (str): Natural language text from which reminder details need to be extracted.
+
+    Returns:
+        dict: Details of the processed reminder which contains reminder frequency and other reminder details.
+    """
+    # Set up the OpenAI model
+    model = ChatOpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"), model="gpt-3.5-turbo")
+    # Set up the JSON output parser with the Reminder model
+    parser = JsonOutputParser(pydantic_object=Reminder)
+    # Define the prompt template with enhanced instructions
+    prompt = PromptTemplate(
+        template=(
+            "You are a highly intelligent assistant that parses reminder requests with dates, times, and repeat frequencies "
+            "in various formats. Follow these instructions carefully to extract details without introducing additional fields.\n\n"
+            
+            "Instructions:\n"
+            "1. **Interpretation of Dates and Times**:\n"
+            "   - Provide a relative date phrase for 'start_date_phrase' "
+            "   that describes when the reminder should start (e.g., 'tomorrow,' 'next week').\n"
+            "   Try to understand whether the reminder is for a specific day / week or it repeats recurringly."
+            "   Try to extract time at which you need to remind else default to 11am."
+            "   Try to understand phrases like alternate days."
+            "2. Populate 'repeat_frequency' directly with integer values if provided, for fields like 'daily', 'weekly', etc.\n"
+            "   - Do not introduce new keys such as 'interval'. Instead, set 'daily': 2 for 'every 2 days'.\n"
+            "3. For specific days, use 'selected_days_of_week' as a list of integers (e.g., [1, 4] for Monday and Thursday), "
+            "and 'selected_days_of_month' as a list of integers for days of the month (e.g., [1, 15]).\n\n"
+            "4. **Tags Extraction**:\n"
+            "   - Identify single or double-word tags from the reminder that represent the main topics or categories.\n\n"
+            
+            "Output the information in structured JSON with fields: task, start_date, end_date, time, repeat_frequency, and tags.\n\n"
+            
+            "{format_instructions}\n\n"
+            
+            "Reminder Text: {query}"
+        ),
+        input_variables=["query"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+    # Create a chain that combines the prompt, model, and parser
+    chain = prompt | model | parser
     # Pass the reminder text to the chain for processing
     parsed_data = chain.invoke({"query": reminder_text})
-    
     # Extract the start date phrase and time from parsed data
     start_date_phrase = parsed_data.get('start_date_phrase') or "today"
-    # time_str = parsed_data.get('time', '11:00 AM')  # Default time if none provided
-
     # Process start_date using dateparser
     start_date = dateparser.parse(
         start_date_phrase,
         settings={'PREFER_DATES_FROM': 'future', 'RELATIVE_BASE': datetime.now()}
     )
-
     if not start_date:
         # Fallback to parsedatetime if dateparser fails
         cal = parsedatetime.Calendar()
         time_struct, parse_status = cal.parse(start_date_phrase, datetime.now())
         start_date = datetime(*time_struct[:6]) if parse_status == 1 else datetime.now().date()
-
     parsed_data['start_date'] = start_date.strftime('%d-%m-%Y') if start_date else datetime.now().strftime('%d-%m-%Y')
-
-    # Clean up the output for clarity by removing start_date_phrase
-    # del parsed_data['start_date_phrase']
-    
     return parsed_data
 
-# Example usage
-reminder_text = "Remind me to wish bd to wife on dec 8."
-parsed_data = process_reminder_text(reminder_text)
-
-print("Parsed Reminder Data:", parsed_data)
-
-
-
-import os
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
 
 def generate_eventbridge_expression(task, start_date, time_str, repeat_frequency):
     # Convert start_date and time_str to datetime format
@@ -196,21 +178,12 @@ def generate_eventbridge_expression(task, start_date, time_str, repeat_frequency
     return expression
 
 
-generate_eventbridge_expression(
-    task=parsed_data["task"],
-    start_date=parsed_data["start_date"],
-    time_str=parsed_data["time"],
-    repeat_frequency=parsed_data["repeat_frequency"]
-)
-
-
 def generate_reminder_summary(parsed_data):
     task = parsed_data['task']
     start_date = parsed_data['start_date']
     frequency = parsed_data['repeat_frequency']
     time_str = parsed_data['time']
     # start_date_phrase = parsed_data['start_date_phrase']
-
     # Determine the frequency description
     if frequency.get('daily'):
         frequency_desc = f"every {frequency['daily']} day(s)"
@@ -230,12 +203,6 @@ def generate_reminder_summary(parsed_data):
         frequency_desc = f"every {frequency['hourly']} hour(s)"
     else:
         frequency_desc = f"on {start_date} at {time_str}"
-
     # Create the summary sentence
     summary = f"I will remind you to {task} {frequency_desc}"
-
     return summary
-
-# Example usage
-summary = generate_reminder_summary(parsed_data)
-print("Reminder Summary:", summary)
