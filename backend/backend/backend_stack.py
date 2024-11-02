@@ -1,4 +1,3 @@
-import queue
 from aws_cdk import (
     Stack,
     aws_lambda as _lambda,
@@ -6,12 +5,10 @@ from aws_cdk import (
     aws_sqs as sqs,
     aws_dynamodb as dynamodb,
     aws_events as events,
-    aws_events_targets as targets,
-    RemovalPolicy,  # Import RemovalPolicy from aws_cdk
+    RemovalPolicy,
     aws_iam as iam
 )
 from constructs import Construct
-import os
 
 class RemindMeBackend(Stack):
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
@@ -28,18 +25,8 @@ class RemindMeBackend(Stack):
         # Apply the removal policy to retain the table on stack deletion
         reminders_table.apply_removal_policy(RemovalPolicy.RETAIN)
 
-        dlq_failover = sqs.Queue(
-            self, 
-            "RemindersDLQ2",
-        )
-        dead_letter_queue = sqs.DeadLetterQueue(max_receive_count=500, queue=dlq_failover)
-
-        # Define SQS Queue for Reminder Processing
-        reminders_queue = sqs.Queue(
-            self, 
-            "RemindersQueue",
-            dead_letter_queue=dead_letter_queue,
-        )
+        # Define SQS Queue for Failure Handling
+        reminders_queue = sqs.Queue(self, "RemindersQueue")
         reminders_queue.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Define Lambda Function for set-reminder-by-text
