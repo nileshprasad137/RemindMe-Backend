@@ -8,11 +8,11 @@ sqs = boto3.client("sqs")
 events = boto3.client("events")
 
 REMINDERS_TABLE_NAME = os.environ["REMINDERS_TABLE_NAME"]
+REMINDERS_QUEUE_ARN = os.environ["REMINDERS_QUEUE_ARN"]
 REMINDERS_QUEUE_URL = os.environ["REMINDERS_QUEUE_URL"]
 
 def generate_eventbridge_expression(reminder_text):
     # Your function to generate the EventBridge cron/rate expression
-    # Example return:
     return "rate(1 day)"
 
 def handler(event, context):
@@ -26,26 +26,15 @@ def handler(event, context):
     # Create EventBridge rule
     rule_name = f"reminder_{device_id}_{context.aws_request_id}"
     try:
-        response = events.put_rule(
+        events.put_rule(
             Name=rule_name,
             ScheduleExpression=expression,
             State="ENABLED"
         )
 
-        # Add target (Lambda, SQS, etc., if applicable)
-        events.put_targets(
-            Rule=rule_name,
-            Targets=[
-                {
-                    "Id": "1",
-                    "Arn": REMINDERS_QUEUE_URL  # You can target SQS directly or trigger another Lambda
-                }
-            ]
-        )
-
-        # Send a message to SQS for DynamoDB processing
+        # Optionally send a message to SQS for further processing
         sqs.send_message(
-            QueueUrl=REMINDERS_QUEUE_URL,
+            QueueUrl=os.environ["REMINDERS_QUEUE_URL"],  # Use URL here for SQS client
             MessageBody=json.dumps({
                 "device_id": device_id,
                 "reminder_text": reminder_text,
@@ -53,7 +42,6 @@ def handler(event, context):
             })
         )
 
-        # Return success response
         return {
             "statusCode": 200,
             "body": json.dumps({"message": "Reminder scheduled successfully"})
