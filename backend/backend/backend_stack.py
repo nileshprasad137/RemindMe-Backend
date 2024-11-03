@@ -52,7 +52,8 @@ class RemindMeBackend(Stack):
                 "REMINDERS_TABLE_NAME": reminders_table.table_name,
                 "REMINDERS_QUEUE_ARN": reminders_queue.queue_arn,
                 "REMINDERS_QUEUE_URL": reminders_queue.queue_url,
-                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY")
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+                "EVENTBRIDGE_TARGET": os.getenv("EVENTBRIDGE_TARGET")
             },
             architecture=_lambda.Architecture.X86_64
         )
@@ -76,7 +77,8 @@ class RemindMeBackend(Stack):
                 "REMINDERS_TABLE_NAME": reminders_table.table_name,
                 "REMINDERS_QUEUE_ARN": reminders_queue.queue_arn,
                 "REMINDERS_QUEUE_URL": reminders_queue.queue_url,
-                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY")
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+                "EVENTBRIDGE_TARGET": os.getenv("EVENTBRIDGE_TARGET")
             },
             architecture=_lambda.Architecture.X86_64
         )

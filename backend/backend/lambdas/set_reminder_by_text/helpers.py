@@ -113,7 +113,15 @@ def get_reminder_schedule_json(reminder_text: str):
         cal = parsedatetime.Calendar()
         time_struct, parse_status = cal.parse(start_date_phrase, datetime.now())
         start_date = datetime(*time_struct[:6]) if parse_status == 1 else datetime.now().date()
+
     parsed_data['start_date'] = start_date.strftime('%d-%m-%Y') if start_date else datetime.now().strftime('%d-%m-%Y')
+    # Filter out None values at the top level
+    parsed_data = {key: value for key, value in parsed_data.items() if value is not None}
+    # Remove None values specifically from within repeat_frequency
+    if 'repeat_frequency' in parsed_data:
+        parsed_data['repeat_frequency'] = {
+            k: v for k, v in parsed_data['repeat_frequency'].items() if v is not None
+        }
     return parsed_data
 
 
@@ -126,7 +134,11 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
     start_time = f"{start_datetime.minute} {start_datetime.hour}"
 
     # Determine the EventBridge expression based on frequency
-    if repeat_frequency.get("daily"):
+    if not repeat_frequency:
+        # One-time expression for a specific date and time
+        expression = f"at({start_datetime.strftime('%Y-%m-%dT%H:%M:%S')})"
+    
+    elif repeat_frequency.get("daily"):
         days = repeat_frequency["daily"]
         unit = "day" if days == 1 else "days"
         expression = f"rate({days} {unit})"
@@ -184,11 +196,13 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
 def generate_reminder_summary(parsed_data):
     task = parsed_data['task']
     start_date = parsed_data['start_date']
-    frequency = parsed_data['repeat_frequency']
+    frequency = parsed_data.get('repeat_frequency') or None
     time_str = parsed_data['time']
     # start_date_phrase = parsed_data['start_date_phrase']
     # Determine the frequency description
-    if frequency.get('daily'):
+    if not frequency:
+        frequency_desc = f"on {start_date} at {time_str}"
+    elif frequency.get('daily'):
         frequency_desc = f"every {frequency['daily']} day(s)"
     elif frequency.get('selected_days_of_week'):
         days = [day_of_week_map[day] for day in frequency['selected_days_of_week']]

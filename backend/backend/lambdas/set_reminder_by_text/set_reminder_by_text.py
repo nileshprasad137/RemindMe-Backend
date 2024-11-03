@@ -15,9 +15,25 @@ from helpers import (
 dynamodb = boto3.resource("dynamodb")
 sqs = boto3.client("sqs")
 events = boto3.client("events")
+scheduler = boto3.client('scheduler')
 
 REMINDERS_TABLE_NAME = os.environ["REMINDERS_TABLE_NAME"]
 REMINDERS_QUEUE_URL = os.environ["REMINDERS_QUEUE_URL"]
+EVENTBRIDGE_TARGET = os.environ["EVENTBRIDGE_TARGET"]
+
+
+def is_one_time_schedule(expression):
+    """
+    Determines if a given EventBridge expression is a one-time schedule.
+
+    Parameters:
+        expression (str): The schedule expression to check.
+
+    Returns:
+        bool: True if it is a one-time schedule ('at' expression), False otherwise.
+    """
+    return expression.strip().startswith("at(")
+
 
 def handler(event, context):
     body = json.loads(event["body"])
@@ -38,13 +54,26 @@ def handler(event, context):
         reminder_scheduled_message = generate_reminder_summary(reminder_schedule_json)
 
         rule_name = f"reminder_{device_id}_{reminder_id}"
-        
-        # Create the EventBridge rule
-        events.put_rule(
-            Name=rule_name,
-            ScheduleExpression=expression,
-            State="ENABLED"
-        )
+
+        if is_one_time_schedule(expression):
+            scheduler.create_schedule(
+                Name=rule_name,
+                ScheduleExpression=expression,
+                FlexibleTimeWindow={
+                    'Mode': 'OFF'
+                },
+                Target={
+                    'Arn': EVENTBRIDGE_TARGET,
+                }
+            )
+            print("One-time EventBridge Scheduler job created successfully.")
+        else:
+            # Create the EventBridge rule
+            events.put_rule(
+                Name=rule_name,
+                ScheduleExpression=expression,
+                State="ENABLED"
+            )
 
         # Add the reminder entry to DynamoDB directly
         reminders_table = dynamodb.Table(REMINDERS_TABLE_NAME)
