@@ -34,22 +34,13 @@ class RemindMeBackend(Stack):
         reminders_queue.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Define Lambda Function for set-reminder-by-text
-        set_reminder_lambda = _lambda.Function(
+        set_reminder_lambda =  _lambda.Function(
             self,
             "SetReminderByTextFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="set_reminder_by_text.handler",
             timeout=Duration.seconds(15),
-            code=_lambda.Code.from_asset(
-                path="backend/lambdas/set_reminder_by_text",
-                bundling={
-                    "image": _lambda.Runtime.PYTHON_3_11.bundling_image,
-                    "command": [
-                        "bash", "-c",
-                        "pip install --platform manylinux2014_x86_64 --only-binary=:all: --no-cache -r requirements.txt -t /asset-output && cp -au . /asset-output"
-                    ]
-                },
-            ),
+            code=_lambda.Code.from_asset("backend/lambdas/set_reminder_by_text"),
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
                     self,
@@ -63,6 +54,7 @@ class RemindMeBackend(Stack):
                 "REMINDERS_QUEUE_URL": reminders_queue.queue_url,
                 "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY")
             },
+            architecture=_lambda.Architecture.X86_64
         )
 
         # Grant Lambda permissions to DynamoDB table and SQS
