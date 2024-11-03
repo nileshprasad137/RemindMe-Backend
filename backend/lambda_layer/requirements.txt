@@ -1,0 +1,7 @@
+dateparser==1.2.0
+python-dotenv==1.0.1
+parsedatetime==2.6
+pydantic==2.9.2
+langchain-core==0.3.10
+langchain-openai==0.2.2
+regex==2024.9.11

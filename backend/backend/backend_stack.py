@@ -1,5 +1,4 @@
 import os
-from platform import architecture
 from dotenv import load_dotenv
 from aws_cdk import (
     Duration,
@@ -9,8 +8,7 @@ from aws_cdk import (
     aws_sqs as sqs,
     aws_dynamodb as dynamodb,
     RemovalPolicy,
-    aws_iam as iam,
-    Duration
+    aws_iam as iam
 )
 from constructs import Construct
 
@@ -41,7 +39,7 @@ class RemindMeBackend(Stack):
             "SetReminderByTextFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="set_reminder_by_text.handler",
-            timeout=Duration.seconds(15), 
+            timeout=Duration.seconds(15),
             code=_lambda.Code.from_asset(
                 path="backend/lambdas/set_reminder_by_text",
                 bundling={
@@ -52,6 +50,13 @@ class RemindMeBackend(Stack):
                     ]
                 },
             ),
+            layers=[
+                _lambda.LayerVersion.from_layer_version_arn(
+                    self,
+                    "SharedDependenciesLayer",
+                    os.getenv("LAMBDA_LAYER_ARN")
+                )
+            ],
             environment={
                 "REMINDERS_TABLE_NAME": reminders_table.table_name,
                 "REMINDERS_QUEUE_ARN": reminders_queue.queue_arn,
