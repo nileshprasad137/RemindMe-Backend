@@ -1,14 +1,20 @@
+import os
+from platform import architecture
+from dotenv import load_dotenv
 from aws_cdk import (
+    Duration,
     Stack,
     aws_lambda as _lambda,
     aws_apigateway as apigateway,
     aws_sqs as sqs,
     aws_dynamodb as dynamodb,
-    aws_events as events,
     RemovalPolicy,
-    aws_iam as iam
+    aws_iam as iam,
+    Duration
 )
 from constructs import Construct
+
+load_dotenv()
 
 class RemindMeBackend(Stack):
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
@@ -33,13 +39,24 @@ class RemindMeBackend(Stack):
         set_reminder_lambda = _lambda.Function(
             self,
             "SetReminderByTextFunction",
-            runtime=_lambda.Runtime.PYTHON_3_8,
+            runtime=_lambda.Runtime.PYTHON_3_11,
             handler="set_reminder_by_text.handler",
-            code=_lambda.Code.from_asset("backend/lambdas/set_reminder_by_text"),
+            timeout=Duration.seconds(15), 
+            code=_lambda.Code.from_asset(
+                path="backend/lambdas/set_reminder_by_text",
+                bundling={
+                    "image": _lambda.Runtime.PYTHON_3_11.bundling_image,
+                    "command": [
+                        "bash", "-c",
+                        "pip install --platform manylinux2014_x86_64 --only-binary=:all: --no-cache -r requirements.txt -t /asset-output && cp -au . /asset-output"
+                    ]
+                },
+            ),
             environment={
                 "REMINDERS_TABLE_NAME": reminders_table.table_name,
                 "REMINDERS_QUEUE_ARN": reminders_queue.queue_arn,
                 "REMINDERS_QUEUE_URL": reminders_queue.queue_url,
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY")
             },
         )
 

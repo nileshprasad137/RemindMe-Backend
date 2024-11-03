@@ -83,7 +83,7 @@ def get_reminder_schedule_json(reminder_text: str):
             "   Try to understand phrases like alternate days."
             "2. Populate 'repeat_frequency' directly with integer values if provided, for fields like 'daily', 'weekly', etc.\n"
             "   - Do not introduce new keys such as 'interval'. Instead, set 'daily': 2 for 'every 2 days'.\n"
-            "3. For specific days, use 'selected_days_of_week' as a list of integers (e.g., [1, 4] for Monday and Thursday), "
+            "3. For specific days, use 'selected_days_of_week' as a list of integers (e.g., [1, 4] for Sunday and Wednesday), "
             "and 'selected_days_of_month' as a list of integers for days of the month (e.g., [1, 15]).\n\n"
             "4. **Tags Extraction**:\n"
             "   - Identify single or double-word tags from the reminder that represent the main topics or categories.\n\n"
@@ -117,7 +117,10 @@ def get_reminder_schedule_json(reminder_text: str):
     return parsed_data
 
 
-def generate_eventbridge_expression(task, start_date, time_str, repeat_frequency):
+def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
+    """
+    Generates eventbridge schedule expression
+    """
     # Convert start_date and time_str to datetime format
     start_datetime = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
     start_time = f"{start_datetime.minute} {start_datetime.hour}"
