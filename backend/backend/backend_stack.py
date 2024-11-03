@@ -34,7 +34,7 @@ class RemindMeBackend(Stack):
         reminders_queue.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Define Lambda Function for set-reminder-by-text
-        set_reminder_lambda =  _lambda.Function(
+        set_reminder_by_text_lambda =  _lambda.Function(
             self,
             "SetReminderByTextFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -44,7 +44,31 @@ class RemindMeBackend(Stack):
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
                     self,
-                    "SharedDependenciesLayer",
+                    "DependenciesLayer1",
+                    os.getenv("LAMBDA_LAYER_ARN")
+                )
+            ],
+            environment={
+                "REMINDERS_TABLE_NAME": reminders_table.table_name,
+                "REMINDERS_QUEUE_ARN": reminders_queue.queue_arn,
+                "REMINDERS_QUEUE_URL": reminders_queue.queue_url,
+                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY")
+            },
+            architecture=_lambda.Architecture.X86_64
+        )
+
+        # Define Lambda Function for set-reminder-manually
+        set_reminder_manually_lambda =  _lambda.Function(
+            self,
+            "SetReminderManuallyFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="set_reminder_manually.handler",
+            timeout=Duration.seconds(15),
+            code=_lambda.Code.from_asset("backend/lambdas/set_reminder_manually"),
+            layers=[
+                _lambda.LayerVersion.from_layer_version_arn(
+                    self,
+                    "DependenciesLayer2",
                     os.getenv("LAMBDA_LAYER_ARN")
                 )
             ],
@@ -58,11 +82,19 @@ class RemindMeBackend(Stack):
         )
 
         # Grant Lambda permissions to DynamoDB table and SQS
-        reminders_table.grant_read_write_data(set_reminder_lambda)
-        reminders_queue.grant_send_messages(set_reminder_lambda)
+        reminders_table.grant_read_write_data(set_reminder_by_text_lambda)
+        reminders_table.grant_read_write_data(set_reminder_manually_lambda)
+        reminders_queue.grant_send_messages(set_reminder_by_text_lambda)
+        reminders_queue.grant_send_messages(set_reminder_manually_lambda)
 
         # Add EventBridge permissions to the Lambda role
-        set_reminder_lambda.add_to_role_policy(
+        set_reminder_by_text_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:PutRule", "events:PutTargets"],
+                resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
+            )
+        )
+        set_reminder_manually_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["events:PutRule", "events:PutTargets"],
                 resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
@@ -72,6 +104,11 @@ class RemindMeBackend(Stack):
         # Define API Gateway to trigger Lambda
         api = apigateway.RestApi(self, "RemindersApi")
         api.apply_removal_policy(RemovalPolicy.RETAIN)
-        reminders = api.root.add_resource("set-reminder-by-text")
-        reminders_integration = apigateway.LambdaIntegration(set_reminder_lambda)
-        reminders.add_method("POST", reminders_integration)
+        # add api -> set-reminder-by-text
+        set_reminder_by_text_resource = api.root.add_resource("set-reminder-by-text")
+        set_reminder_by_text_integration = apigateway.LambdaIntegration(set_reminder_by_text_lambda)
+        set_reminder_by_text_resource.add_method("POST", set_reminder_by_text_integration)
+        # add api -> set-reminder-manually
+        set_reminder_manually_resource = api.root.add_resource("set-reminder-manually")
+        set_reminder_manually_integration = apigateway.LambdaIntegration(set_reminder_manually_lambda)
+        set_reminder_manually_resource.add_method("POST", set_reminder_manually_integration)
