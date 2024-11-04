@@ -34,7 +34,7 @@ class RemindMeBackend(Stack):
         reminders_queue.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # Define Lambda Function for set-reminder-by-text
-        set_reminder_by_text_lambda =  _lambda.Function(
+        set_reminder_by_text_lambda = _lambda.Function(
             self,
             "SetReminderByTextFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -44,7 +44,7 @@ class RemindMeBackend(Stack):
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
                     self,
-                    "DependenciesLayer1",
+                    "DependenciesLayer1", # these are shared dependencies, just the id needs to be different across a stack
                     os.getenv("LAMBDA_LAYER_ARN")
                 )
             ],
@@ -59,7 +59,7 @@ class RemindMeBackend(Stack):
         )
 
         # Define Lambda Function for set-reminder-manually
-        set_reminder_manually_lambda =  _lambda.Function(
+        set_reminder_manually_lambda = _lambda.Function(
             self,
             "SetReminderManuallyFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -69,7 +69,7 @@ class RemindMeBackend(Stack):
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
                     self,
-                    "DependenciesLayer2",
+                    "DependenciesLayer2", # these are shared dependencies, just the id needs to be different across a stack
                     os.getenv("LAMBDA_LAYER_ARN")
                 )
             ],
@@ -83,9 +83,32 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
+        # Define Lambda Function for get-reminder-list
+        get_reminder_list_lambda = _lambda.Function(
+            self,
+            "GetReminderListFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="get_reminder_list.handler",
+            timeout=Duration.seconds(15),
+            code=_lambda.Code.from_asset("backend/lambdas/get_reminder_list"),
+            layers=[
+                _lambda.LayerVersion.from_layer_version_arn(
+                    self,
+                    "DependenciesLayer3", # these are shared dependencies, just the id needs to be different across a stack
+                    os.getenv("LAMBDA_LAYER_ARN")
+                )
+            ],
+            environment={
+                "REMINDERS_TABLE_NAME": reminders_table.table_name,
+                "EVENTBRIDGE_TARGET": os.getenv("EVENTBRIDGE_TARGET")
+            },
+            architecture=_lambda.Architecture.X86_64
+        )
+
         # Grant Lambda permissions to DynamoDB table and SQS
         reminders_table.grant_read_write_data(set_reminder_by_text_lambda)
         reminders_table.grant_read_write_data(set_reminder_manually_lambda)
+        reminders_table.grant_read_data(get_reminder_list_lambda)
         reminders_queue.grant_send_messages(set_reminder_by_text_lambda)
         reminders_queue.grant_send_messages(set_reminder_manually_lambda)
 
@@ -102,15 +125,28 @@ class RemindMeBackend(Stack):
                 resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
             )
         )
+        get_reminder_list_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:DescribeRule", "events:ListTagsForResource"],
+                resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
+            )
+        )
 
         # Define API Gateway to trigger Lambda
         api = apigateway.RestApi(self, "RemindersApi")
         api.apply_removal_policy(RemovalPolicy.RETAIN)
-        # add api -> set-reminder-by-text
+
+        # API resource for set-reminder-by-text
         set_reminder_by_text_resource = api.root.add_resource("set-reminder-by-text")
         set_reminder_by_text_integration = apigateway.LambdaIntegration(set_reminder_by_text_lambda)
         set_reminder_by_text_resource.add_method("POST", set_reminder_by_text_integration)
-        # add api -> set-reminder-manually
+
+        # API resource for set-reminder-manually
         set_reminder_manually_resource = api.root.add_resource("set-reminder-manually")
         set_reminder_manually_integration = apigateway.LambdaIntegration(set_reminder_manually_lambda)
         set_reminder_manually_resource.add_method("POST", set_reminder_manually_integration)
+
+        # API resource for get-reminder-list
+        get_reminder_list_resource = api.root.add_resource("get-reminder-list")
+        get_reminder_list_integration = apigateway.LambdaIntegration(get_reminder_list_lambda)
+        get_reminder_list_resource.add_method("GET", get_reminder_list_integration)
