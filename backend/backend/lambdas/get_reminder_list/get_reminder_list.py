@@ -91,7 +91,7 @@ def handler(event, context):
         # Parse device_id, filter, and schedule inclusion flag from the request
         query_params = event.get("queryStringParameters", {})
         device_id = query_params.get("device_id")
-        filter_type = query_params.get("filter", "all")  # Options: 'all', 'past', 'future'
+        filter_type = query_params.get("filter", "all")  # Options: 'all', 'past', 'upcoming'
         include_schedule = query_params.get("include_schedule", "false").lower() == "true"
 
         if not device_id:
@@ -100,31 +100,49 @@ def handler(event, context):
                 "body": json.dumps({"error": "device_id is required"})
             }
 
-        # Query DynamoDB for reminders associated with the device_id
+        # Prepare query parameters based on filter_type
         reminders_table = dynamodb.Table(REMINDERS_TABLE_NAME)
-        response = reminders_table.query(
-            KeyConditionExpression=boto3.dynamodb.conditions.Key("PK").eq(f"CUSTOMER#{device_id}"),
-            ScanIndexForward=False  # Sort by descending order of SK (newest first)
-        )
+        filter_expression = None
+
+        if filter_type == "past":
+            filter_expression = boto3.dynamodb.conditions.Attr("is_completed").eq(True)
+        elif filter_type == "upcoming":
+            # Check for incomplete items (treat missing or null is_completed as False)
+            filter_expression = boto3.dynamodb.conditions.Attr("is_completed").not_exists() | boto3.dynamodb.conditions.Attr("is_completed").eq(False)
+
+        # Query DynamoDB based on the filter type
+        if filter_expression:
+            response = reminders_table.query(
+                KeyConditionExpression=boto3.dynamodb.conditions.Key("PK").eq(f"CUSTOMER#{device_id}"),
+                FilterExpression=filter_expression,
+                ScanIndexForward=False
+            )
+        else:
+            response = reminders_table.query(
+                KeyConditionExpression=boto3.dynamodb.conditions.Key("PK").eq(f"CUSTOMER#{device_id}"),
+                ScanIndexForward=False
+            )
 
         reminders = response.get("Items", [])
-        now = datetime.now().isoformat()
-        response_data = []
+        response_data = {"past": [], "upcoming": []}
+        current_date = datetime.now().date()
 
-        # Process reminders, applying filters and optionally retrieving schedules
+        # Process reminders, optionally retrieving schedules for upcoming reminders
         for reminder in reminders:
             reminder = convert_decimal(reminder)  # Convert any Decimal fields to int/float
-
-            start_date = reminder["start_date"]
-            if filter_type == "past" and start_date >= now:
-                continue
-            elif filter_type == "future" and start_date <= now:
-                continue
-
+            is_completed = reminder.get("is_completed", False)
+            end_date_str = reminder.get("end_date", None)
             reminder_data = reminder.copy()
 
-            if include_schedule:
-                # Retrieve and parse the EventBridge schedule expression
+            # Check if the reminder is past based on the end_date
+            if end_date_str and end_date_str != "None":
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                is_past = end_date < current_date
+            else:
+                is_past = is_completed
+
+            if include_schedule and not is_past:
+                # Retrieve and parse the EventBridge schedule expression for upcoming reminders only
                 eventbridge_expression = reminder.get("eventbridge_expression", None)
                 if eventbridge_expression:
                     try:
@@ -134,13 +152,19 @@ def handler(event, context):
                         print(f"Error parsing EventBridge expression for reminder {reminder['SK']}: {e}")
                         reminder_data["next_occurrences"] = "Error parsing schedule"
 
-            response_data.append(reminder_data)
+            # Categorize reminders into past or upcoming based on end_date or completion status
+            if is_past:
+                response_data["past"].append(reminder_data)
+            else:
+                response_data["upcoming"].append(reminder_data)
 
-        # Construct response with the retrieved reminders
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"reminders": response_data})
-        }
+        # Return only the requested type or all if "all" was specified
+        if filter_type == "past":
+            return {"statusCode": 200, "body": json.dumps({"past": response_data["past"]})}
+        elif filter_type == "upcoming":
+            return {"statusCode": 200, "body": json.dumps({"upcoming": response_data["upcoming"]})}
+        else:
+            return {"statusCode": 200, "body": json.dumps(response_data)}
 
     except Exception as e:
         print(f"Error fetching reminders: {e}")

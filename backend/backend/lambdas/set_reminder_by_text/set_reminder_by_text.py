@@ -81,6 +81,7 @@ def handler(event, context):
         reminder_schedule_json["SK"] = f"REMINDER#{reminder_id}"
         reminder_schedule_json["reminder_scheduled_message"] = reminder_scheduled_message
         reminder_schedule_json["eventbridge_expression"] = expression
+        reminder_schedule_json["is_completed"] = False
         reminder_schedule_json["created_at"] = datetime.now().isoformat()
         reminder_schedule_json["updated_at"] = datetime.now().isoformat()
         # Insert the reminder into DynamoDB
