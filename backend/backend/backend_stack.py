@@ -44,7 +44,7 @@ class RemindMeBackend(Stack):
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
                     self,
-                    "DependenciesLayer1", # these are shared dependencies, just the id needs to be different across a stack
+                    "DependenciesLayer1",
                     os.getenv("LAMBDA_LAYER_ARN")
                 )
             ],
@@ -69,7 +69,7 @@ class RemindMeBackend(Stack):
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
                     self,
-                    "DependenciesLayer2", # these are shared dependencies, just the id needs to be different across a stack
+                    "DependenciesLayer2",
                     os.getenv("LAMBDA_LAYER_ARN")
                 )
             ],
@@ -94,7 +94,7 @@ class RemindMeBackend(Stack):
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
                     self,
-                    "DependenciesLayer3", # these are shared dependencies, just the id needs to be different across a stack
+                    "DependenciesLayer3",
                     os.getenv("LAMBDA_LAYER_ARN")
                 )
             ],
@@ -105,10 +105,32 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
+        # Define Lambda Function for mark-reminder-complete
+        mark_reminder_complete_lambda = _lambda.Function(
+            self,
+            "MarkReminderCompleteFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="mark_reminder_complete.handler",
+            timeout=Duration.seconds(15),
+            code=_lambda.Code.from_asset("backend/lambdas/mark_reminder_complete"),
+            layers=[
+                _lambda.LayerVersion.from_layer_version_arn(
+                    self,
+                    "DependenciesLayer4",
+                    os.getenv("LAMBDA_LAYER_ARN")
+                )
+            ],
+            environment={
+                "REMINDERS_TABLE_NAME": reminders_table.table_name
+            },
+            architecture=_lambda.Architecture.X86_64
+        )
+
         # Grant Lambda permissions to DynamoDB table and SQS
         reminders_table.grant_read_write_data(set_reminder_by_text_lambda)
         reminders_table.grant_read_write_data(set_reminder_manually_lambda)
         reminders_table.grant_read_data(get_reminder_list_lambda)
+        reminders_table.grant_read_write_data(mark_reminder_complete_lambda)
         reminders_queue.grant_send_messages(set_reminder_by_text_lambda)
         reminders_queue.grant_send_messages(set_reminder_manually_lambda)
 
@@ -150,3 +172,8 @@ class RemindMeBackend(Stack):
         get_reminder_list_resource = api.root.add_resource("get-reminder-list")
         get_reminder_list_integration = apigateway.LambdaIntegration(get_reminder_list_lambda)
         get_reminder_list_resource.add_method("GET", get_reminder_list_integration)
+
+        # API resource for mark-reminder-complete
+        mark_reminder_complete_resource = api.root.add_resource("mark-reminder-complete")
+        mark_reminder_complete_integration = apigateway.LambdaIntegration(mark_reminder_complete_lambda)
+        mark_reminder_complete_resource.add_method("POST", mark_reminder_complete_integration)
