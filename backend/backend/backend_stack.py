@@ -134,7 +134,7 @@ class RemindMeBackend(Stack):
         reminders_queue.grant_send_messages(set_reminder_by_text_lambda)
         reminders_queue.grant_send_messages(set_reminder_manually_lambda)
 
-        # Add EventBridge permissions to the Lambda role
+        # Add EventBridge permissions to the Lambda roles
         set_reminder_by_text_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["events:PutRule", "events:PutTargets"],
@@ -150,6 +150,12 @@ class RemindMeBackend(Stack):
         get_reminder_list_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["events:DescribeRule", "events:ListTagsForResource"],
+                resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
+            )
+        )
+        mark_reminder_complete_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["events:DescribeRule", "events:DisableRule"],
                 resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
             )
         )

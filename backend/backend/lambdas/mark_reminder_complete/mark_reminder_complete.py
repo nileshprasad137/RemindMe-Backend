@@ -1,11 +1,11 @@
 import os
 import json
 import boto3
-# from boto3.dynamodb.conditions import Key
 from datetime import datetime
 
 # Initialize AWS resources
 dynamodb = boto3.resource("dynamodb")
+events_client = boto3.client("events")
 REMINDERS_TABLE_NAME = os.environ["REMINDERS_TABLE_NAME"]
 
 def handler(event, context):
@@ -44,11 +44,21 @@ def handler(event, context):
             ReturnValues="UPDATED_NEW"
         )
 
+        # Disable the associated EventBridge rule
+        rule_name = f"reminder_{device_id}_{reminder_id}"
+        try:
+            # Check if the EventBridge rule exists and disable it
+            events_client.describe_rule(Name=rule_name)  # This checks if the rule exists
+            events_client.disable_rule(Name=rule_name)
+        except events_client.exceptions.ResourceNotFoundException:
+            # If the rule doesn't exist, log and continue
+            print(f"No EventBridge rule found for {rule_name}")
+
         # Return success response with updated attributes
         return {
             "statusCode": 200,
             "body": json.dumps({
-                "message": "Reminder marked as complete",
+                "message": "Reminder marked as complete and associated EventBridge rule disabled",
                 "updated_attributes": response.get("Attributes", {})
             })
         }
