@@ -12,12 +12,21 @@ def generate_customer_id():
     """Generate a unique customer ID if none is provided."""
     return str(uuid.uuid4())
 
+def check_device_id_uniqueness(device_id):
+    """Check if device_id already exists in CustomerDevices table."""
+    table = dynamodb.Table(CUSTOMER_DEVICES_TABLE_NAME)
+    response = table.query(
+        IndexName="DeviceIdIndex",
+        KeyConditionExpression=boto3.dynamodb.conditions.Key("device_id").eq(device_id)
+    )
+    return response.get("Items", [])
+
 def update_customer_info(customer_id, name=None, mobile=None, email=None):
     """Create or update customer-specific info."""
     if not (name or mobile or email):
         return None  # No customer info to update
 
-    now = datetime.now().isoformat()
+    now = datetime.utcnow().isoformat()
 
     customer_item = {
         "PK": f"CUSTOMER#{customer_id}",
@@ -78,8 +87,20 @@ def handler(event, context):
                 "body": json.dumps({"error": "device_id and device_token_id are required"})
             }
 
-        # Generate or use provided customer_id
-        customer_id = body.get("customer_id") or generate_customer_id()
+        # Check if the device_id is unique
+        existing_device = check_device_id_uniqueness(device_id)
+        if existing_device:
+            # Device already exists, update the existing record if customer_id matches
+            if existing_device[0]["PK"] != f"CUSTOMER#{body.get('customer_id')}":
+                return {
+                    "statusCode": 400,
+                    "body": json.dumps({"error": "Device ID already registered under a different customer"})
+                }
+            # Update the existing device record
+            customer_id = existing_device[0]["PK"].split("#")[1]
+        else:
+            # Generate or use provided customer_id if device is new
+            customer_id = body.get("customer_id") or generate_customer_id()
 
         # Update customer-specific info if provided
         customer_item = update_customer_info(
