@@ -84,7 +84,12 @@ def handler(event, context):
         if not device_id or not device_token_id:
             return {
                 "statusCode": 400,
-                "body": json.dumps({"error": "device_id and device_token_id are required"})
+                "body": json.dumps({"error": "device_id and device_token_id are required"}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
             }
 
         # Check if the device_id is unique
@@ -130,12 +135,22 @@ def handler(event, context):
 
         return {
             "statusCode": 200,
-            "body": json.dumps(response_data)
+            "body": json.dumps(response_data),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }
 
     except Exception as e:
         print(f"Error registering customer and device data: {e}")
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": "Failed to register customer and device data"})
+            "body": json.dumps({"error": "Failed to register customer and device data"}),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }
