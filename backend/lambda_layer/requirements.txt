@@ -6,3 +6,4 @@ langchain-core==0.3.10
 langchain-openai==0.2.2
 regex==2024.9.11
 croniter==3.0.3
+google-auth==2.35.0

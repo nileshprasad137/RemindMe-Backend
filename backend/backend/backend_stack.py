@@ -8,7 +8,8 @@ from aws_cdk import (
     aws_sqs as sqs,
     aws_dynamodb as dynamodb,
     RemovalPolicy,
-    aws_iam as iam
+    aws_iam as iam,
+    aws_events as events,
 )
 from constructs import Construct
 
@@ -161,6 +162,28 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
+        # Define Lambda Function for process-events
+        process_events_lambda = _lambda.Function(
+            self,
+            "ProcessEventsFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="process_events.handler",
+            timeout=Duration.seconds(15),
+            code=_lambda.Code.from_asset("backend/lambdas/process_events"),
+            layers=[
+                _lambda.LayerVersion.from_layer_version_arn(
+                    self,
+                    "DependenciesLayer",
+                    os.getenv("LAMBDA_LAYER_ARN")
+                )
+            ],
+            environment={
+                "CUSTOMER_DEVICES_TABLE_NAME": customer_devices_table.table_name,
+                "REMINDERS_TABLE_NAME": reminders_table.table_name
+            },
+            architecture=_lambda.Architecture.X86_64
+        )
+
         # Grant Lambda permissions to DynamoDB table and SQS
         reminders_table.grant_read_write_data(set_reminder_by_text_lambda)
         reminders_table.grant_read_write_data(set_reminder_manually_lambda)
@@ -170,6 +193,8 @@ class RemindMeBackend(Stack):
         reminders_table.grant_read_write_data(mark_reminder_complete_lambda)
         reminders_queue.grant_send_messages(set_reminder_by_text_lambda)
         reminders_queue.grant_send_messages(set_reminder_manually_lambda)
+        customer_devices_table.grant_read_data(process_events_lambda)
+        reminders_table.grant_read_data(process_events_lambda)
 
         # Add EventBridge permissions to the Lambda roles
         set_reminder_by_text_lambda.add_to_role_policy(
