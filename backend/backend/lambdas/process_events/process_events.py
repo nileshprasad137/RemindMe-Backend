@@ -87,7 +87,12 @@ def handler(event, context):
             print("see event: ", event)
             return {
                 "statusCode": 400,
-                "body": json.dumps({"error": "Device ID and Reminder ID are required"})
+                "body": json.dumps({"error": "Device ID and Reminder ID are required"}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
             }
 
         # Query CustomerDevices to get device info
@@ -101,7 +106,12 @@ def handler(event, context):
             print("device id not found")
             return {
                 "statusCode": 404,
-                "body": json.dumps({"error": "Device not found"})
+                "body": json.dumps({"error": "Device not found"}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
             }
 
         device_info = response["Items"][0]
@@ -120,7 +130,12 @@ def handler(event, context):
             print("no reminder found.")
             return {
                 "statusCode": 404,
-                "body": json.dumps({"error": "Reminder not found"})
+                "body": json.dumps({"error": "Reminder not found"}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
             }
 
         reminder = reminder_response["Item"]
@@ -135,12 +150,22 @@ def handler(event, context):
 
         return {
             "statusCode": 200,
-            "body": json.dumps({"message": "Event processed successfully", "notification": notification_response})
+            "body": json.dumps({"message": "Event processed successfully", "notification": notification_response}),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }
 
     except Exception as e:
         print(f"Error processing event: {e}")
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": "Failed to process event"})
+            "body": json.dumps({"error": "Failed to process event"}),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }

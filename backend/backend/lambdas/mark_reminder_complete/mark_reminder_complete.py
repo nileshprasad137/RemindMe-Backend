@@ -19,7 +19,12 @@ def handler(event, context):
         if not device_id or not reminder_id:
             return {
                 "statusCode": 400,
-                "body": json.dumps({"error": "device_id and reminder_id are required"})
+                "body": json.dumps({"error": "device_id and reminder_id are required"}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
             }
 
         # Define the primary key and sort key for the reminder
@@ -45,7 +50,7 @@ def handler(event, context):
         )
 
         # Disable the associated EventBridge rule
-        rule_name = f"reminder_{device_id}_{reminder_id}"
+        rule_name = f"reminder_{reminder_id}"
         try:
             # Check if the EventBridge rule exists and disable it
             events_client.describe_rule(Name=rule_name)  # This checks if the rule exists
@@ -60,18 +65,33 @@ def handler(event, context):
             "body": json.dumps({
                 "message": "Reminder marked as complete and associated EventBridge rule disabled",
                 "updated_attributes": response.get("Attributes", {})
-            })
+            }),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }
 
     except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
         # This exception occurs if the item does not exist
         return {
             "statusCode": 404,
-            "body": json.dumps({"error": "Reminder not found"})
+            "body": json.dumps({"error": "Reminder not found"}),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }
     except Exception as e:
         print(f"Error marking reminder as complete: {e}")
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": "Failed to mark reminder as complete"})
+            "body": json.dumps({"error": "Failed to mark reminder as complete"}),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }

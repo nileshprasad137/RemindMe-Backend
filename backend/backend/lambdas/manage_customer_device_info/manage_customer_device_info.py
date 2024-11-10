@@ -99,7 +99,12 @@ def handler(event, context):
             if existing_device[0]["PK"] != f"CUSTOMER#{body.get('customer_id')}":
                 return {
                     "statusCode": 400,
-                    "body": json.dumps({"error": "Device ID already registered under a different customer"})
+                    "body": json.dumps({"error": "Device ID already registered under a different customer"}),
+                    "headers": {
+                        "Access-Control-Allow-Origin": "*",  # or specify your domain
+                        "Access-Control-Allow-Headers": "Content-Type",
+                        "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                    },
                 }
             # Update the existing device record
             customer_id = existing_device[0]["PK"].split("#")[1]

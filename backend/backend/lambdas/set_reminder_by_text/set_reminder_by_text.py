@@ -53,7 +53,7 @@ def handler(event, context):
 
         reminder_scheduled_message = generate_reminder_summary(reminder_schedule_json)
 
-        rule_name = f"reminder_{device_id}_{reminder_id}"
+        rule_name = f"reminder_{reminder_id}"
 
         if is_one_time_schedule(expression):
             scheduler.create_schedule(
@@ -94,7 +94,12 @@ def handler(event, context):
                 "message": "Reminder scheduled successfully",
                 "reminder_id": reminder_id,
                 "reminder_scheduled_message": reminder_scheduled_message
-            })
+            }),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }
 
     except ClientError as e:
@@ -115,5 +120,10 @@ def handler(event, context):
         # Return an error response
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": "Failed to schedule reminder"})
+            "body": json.dumps({"error": "Failed to schedule reminder"}),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }

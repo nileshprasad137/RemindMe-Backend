@@ -47,7 +47,7 @@ def handler(event, context):
 
         reminder_scheduled_message = generate_reminder_summary(reminder_data)
 
-        rule_name = f"reminder_{device_id}_{reminder_id}"
+        rule_name = f"reminder_{reminder_id}"
         
         if is_one_time_schedule(expression):
             scheduler.create_schedule(

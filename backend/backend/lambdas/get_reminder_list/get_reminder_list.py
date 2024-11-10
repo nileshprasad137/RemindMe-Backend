@@ -97,7 +97,12 @@ def handler(event, context):
         if not device_id:
             return {
                 "statusCode": 400,
-                "body": json.dumps({"error": "device_id is required"})
+                "body": json.dumps({"error": "device_id is required"}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
             }
 
         # Prepare query parameters based on filter_type
@@ -170,5 +175,10 @@ def handler(event, context):
         print(f"Error fetching reminders: {e}")
         return {
             "statusCode": 500,
-            "body": json.dumps({"error": "Failed to fetch reminders"})
+            "body": json.dumps({"error": "Failed to fetch reminders"}),
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            },
         }
