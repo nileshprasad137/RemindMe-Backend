@@ -165,11 +165,35 @@ def handler(event, context):
 
         # Return only the requested type or all if "all" was specified
         if filter_type == "past":
-            return {"statusCode": 200, "body": json.dumps({"past": response_data["past"]})}
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"past": response_data["past"]}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
+            }
         elif filter_type == "upcoming":
-            return {"statusCode": 200, "body": json.dumps({"upcoming": response_data["upcoming"]})}
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"upcoming": response_data["upcoming"]}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
+            }
         else:
-            return {"statusCode": 200, "body": json.dumps(response_data)}
+            return {
+                "statusCode": 200,
+                "body": json.dumps(response_data),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                },
+            }
 
     except Exception as e:
         print(f"Error fetching reminders: {e}")
