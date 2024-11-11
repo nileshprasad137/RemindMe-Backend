@@ -127,10 +127,10 @@ def get_reminder_schedule_json(reminder_text: str):
 
 def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
     """
-    Generates eventbridge schedule expression
+    Generates EventBridge schedule expression.
     """
-    # Convert start_date and time_str to datetime format
-    start_datetime = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
+    # Parse start_date and normalize time_str using dateparser
+    start_datetime = datetime.strptime(f"{start_date} {dateparser.parse(time_str).strftime('%I:%M %p')}", "%d-%m-%Y %I:%M %p")
     start_time = f"{start_datetime.minute} {start_datetime.hour}"
 
     # Determine the EventBridge expression based on frequency
@@ -149,7 +149,6 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
         expression = f"rate({hours} {unit})"
     
     elif repeat_frequency.get("selected_days_of_week"):
-        # Use cron for specific days of the week
         selected_days_of_week = repeat_frequency["selected_days_of_week"]
         day_map = {1: 'SUN', 2: 'MON', 3: 'TUE', 4: 'WED', 5: 'THU', 6: 'FRI', 7: 'SAT'}
         days = [day_map[day] for day in selected_days_of_week]
@@ -157,9 +156,8 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
         expression = f"cron({start_time} ? * {day_str} *)"
     
     elif repeat_frequency.get("weekly"):
-        # Convert weeks to days for the rate expression
         weeks = repeat_frequency["weekly"]
-        days = weeks * 7  # Convert weeks to days
+        days = weeks * 7
         unit = "day" if days == 1 else "days"
         expression = f"rate({days} {unit})"
     
@@ -172,21 +170,17 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
             return None
     
     elif repeat_frequency.get("monthly"):
-        # Generate a cron expression for monthly schedules
         selected_days_of_month = repeat_frequency.get("selected_days_of_month", [])
         if selected_days_of_month:
             day_str = ",".join(map(str, selected_days_of_month))
             expression = f"cron({start_time} {day_str} * ? *)"
         else:
-            # Default to the start date's day of the month
             expression = f"cron({start_time} {start_datetime.day} * ? *)"
     
     elif repeat_frequency.get("yearly"):
-        # Yearly schedule with a specific month and day
         expression = f"cron({start_time} {start_datetime.day} {start_datetime.month} ? *)"
     
     else:
-        # One-time expression for a specific date and time
         expression = f"at({start_datetime.strftime('%Y-%m-%dT%H:%M:%S')})"
     
     print(f"Generated EventBridge Expression: {expression}")

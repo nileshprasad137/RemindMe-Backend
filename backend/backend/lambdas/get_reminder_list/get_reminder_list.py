@@ -2,6 +2,7 @@ import os
 import json
 import boto3
 import re
+import dateparser
 from datetime import datetime, timedelta
 from croniter import croniter
 from decimal import Decimal
@@ -16,12 +17,12 @@ aws_day_map = {
     'SUN': '0', 'MON': '1', 'TUE': '2', 'WED': '3', 'THU': '4', 'FRI': '5', 'SAT': '6'
 }
 
-def parse_eventbridge_expression(expression, occurrences=3):
+def parse_eventbridge_expression(expression, occurrences=3, start_time=None):
     """Parses EventBridge expressions to generate the next run times."""
     if expression.startswith("rate("):
-        return get_next_rate_occurrences(expression, occurrences)
+        return get_next_rate_occurrences(expression, occurrences, start_time)
     elif expression.startswith("cron("):
-        return get_next_cron_occurrences(expression, occurrences)
+        return get_next_cron_occurrences(expression, occurrences, start_time)
     elif expression.startswith("at("):
         return [parse_at_expression(expression)]
     else:
@@ -34,7 +35,7 @@ def convert_day_of_week(cron_expr):
     cron_parts[4] = ','.join(converted_days)
     return " ".join(cron_parts)
 
-def get_next_rate_occurrences(expression, occurrences):
+def get_next_rate_occurrences(expression, occurrences, start_time=None):
     rate_pattern = re.compile(r"rate\((\d+)\s(day|hour|minute|week)s?\)")
     match = rate_pattern.match(expression)
     
@@ -49,21 +50,25 @@ def get_next_rate_occurrences(expression, occurrences):
             timedelta(weeks=interval_value)
 
     occurrences_list = []
-    next_run_time = datetime.now()
+    next_run_time = start_time if start_time else datetime.now()  # Start from specified start_time or current time
+    
     for _ in range(occurrences):
         next_run_time += delta
         occurrences_list.append(next_run_time)
     
     return occurrences_list
 
-def get_next_cron_occurrences(expression, occurrences):
+def get_next_cron_occurrences(expression, occurrences, start_time=None):
     cron_expr = expression.replace("cron(", "").replace(")", "")
     cron_parts = cron_expr.split()
     if len(cron_parts) == 6:
         cron_expr = " ".join(cron_parts[:5])
     cron_expr = convert_day_of_week(cron_expr)
-    cron_iter = croniter(cron_expr, datetime.now())
+    
+    # Use provided start_time or default to the current time
+    cron_iter = croniter(cron_expr, start_time or datetime.now())
     return [cron_iter.get_next(datetime) for _ in range(occurrences)]
+
 
 def parse_at_expression(expression):
     at_pattern = re.compile(r"at\(([\d-]+)T([\d:]+)\)")
@@ -91,7 +96,7 @@ def handler(event, context):
         # Parse device_id, filter, and schedule inclusion flag from the request
         query_params = event.get("queryStringParameters", {})
         device_id = query_params.get("device_id")
-        filter_type = query_params.get("filter", "all")  # Options: 'all', 'past', 'upcoming'
+        filter_type = query_params.get("filter", "all")
         include_schedule = query_params.get("include_schedule", "false").lower() == "true"
 
         if not device_id:
@@ -99,23 +104,20 @@ def handler(event, context):
                 "statusCode": 400,
                 "body": json.dumps({"error": "device_id is required"}),
                 "headers": {
-                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Headers": "Content-Type",
                     "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
                 },
             }
 
-        # Prepare query parameters based on filter_type
         reminders_table = dynamodb.Table(REMINDERS_TABLE_NAME)
         filter_expression = None
 
         if filter_type == "past":
             filter_expression = boto3.dynamodb.conditions.Attr("is_completed").eq(True)
         elif filter_type == "upcoming":
-            # Check for incomplete items (treat missing or null is_completed as False)
             filter_expression = boto3.dynamodb.conditions.Attr("is_completed").not_exists() | boto3.dynamodb.conditions.Attr("is_completed").eq(False)
 
-        # Query DynamoDB based on the filter type
         if filter_expression:
             response = reminders_table.query(
                 KeyConditionExpression=boto3.dynamodb.conditions.Key("PK").eq(f"CUSTOMER#{device_id}"),
@@ -132,9 +134,8 @@ def handler(event, context):
         response_data = {"past": [], "upcoming": []}
         current_date = datetime.now().date()
 
-        # Process reminders, optionally retrieving schedules for upcoming reminders
         for reminder in reminders:
-            reminder = convert_decimal(reminder)  # Convert any Decimal fields to int/float
+            reminder = convert_decimal(reminder)
             is_completed = reminder.get("is_completed", False)
             end_date_str = reminder.get("end_date", None)
             reminder_data = reminder.copy()
@@ -146,30 +147,34 @@ def handler(event, context):
             else:
                 is_past = is_completed
 
+            # Include schedule occurrences if required and reminder is not past
             if include_schedule and not is_past:
-                # Retrieve and parse the EventBridge schedule expression for upcoming reminders only
                 eventbridge_expression = reminder.get("eventbridge_expression", None)
-                if eventbridge_expression:
+                start_date = reminder.get("start_date")
+                time_str = reminder.get("time")
+
+                if eventbridge_expression and start_date and time_str:
+                    time_str = dateparser.parse(time_str).strftime('%I:%M %p')
+                    start_time = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
                     try:
-                        next_occurrences = parse_eventbridge_expression(eventbridge_expression, occurrences=3)
+                        next_occurrences = parse_eventbridge_expression(eventbridge_expression, occurrences=3, start_time=start_time)
                         reminder_data["next_occurrences"] = [occ.isoformat() for occ in next_occurrences]
                     except ValueError as e:
                         print(f"Error parsing EventBridge expression for reminder {reminder['SK']}: {e}")
                         reminder_data["next_occurrences"] = "Error parsing schedule"
 
-            # Categorize reminders into past or upcoming based on end_date or completion status
+            # Categorize reminders into past or upcoming
             if is_past:
                 response_data["past"].append(reminder_data)
             else:
                 response_data["upcoming"].append(reminder_data)
 
-        # Return only the requested type or all if "all" was specified
         if filter_type == "past":
             return {
                 "statusCode": 200,
                 "body": json.dumps({"past": response_data["past"]}),
                 "headers": {
-                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Headers": "Content-Type",
                     "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
                 },
@@ -179,7 +184,7 @@ def handler(event, context):
                 "statusCode": 200,
                 "body": json.dumps({"upcoming": response_data["upcoming"]}),
                 "headers": {
-                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Headers": "Content-Type",
                     "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
                 },
@@ -189,7 +194,7 @@ def handler(event, context):
                 "statusCode": 200,
                 "body": json.dumps(response_data),
                 "headers": {
-                    "Access-Control-Allow-Origin": "*",  # or specify your domain
+                    "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Headers": "Content-Type",
                     "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
                 },
@@ -201,7 +206,7 @@ def handler(event, context):
             "statusCode": 500,
             "body": json.dumps({"error": "Failed to fetch reminders"}),
             "headers": {
-                "Access-Control-Allow-Origin": "*",  # or specify your domain
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Headers": "Content-Type",
                 "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
             },

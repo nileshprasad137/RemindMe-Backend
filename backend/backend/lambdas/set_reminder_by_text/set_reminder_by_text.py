@@ -1,4 +1,5 @@
 import os
+import dateparser
 import json
 import uuid
 import boto3
@@ -84,6 +85,7 @@ def handler(event, context):
         reminder_schedule_json["is_completed"] = False
         reminder_schedule_json["created_at"] = datetime.now().isoformat()
         reminder_schedule_json["updated_at"] = datetime.now().isoformat()
+        reminder_schedule_json["time"] = dateparser.parse(reminder_schedule_json["time"]).strftime('%I:%M %p')
         # Insert the reminder into DynamoDB
         reminders_table.put_item(Item=reminder_schedule_json)
 
