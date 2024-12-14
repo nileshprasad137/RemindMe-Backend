@@ -44,6 +44,24 @@ class RemindMeBackend(Stack):
         )
         customer_devices_table.apply_removal_policy(RemovalPolicy.RETAIN)
 
+        # Define an IAM Role for the EventBridge Scheduler
+        scheduler_role = iam.Role(
+            self, 
+            "SchedulerRole",
+            assumed_by=iam.ServicePrincipal("scheduler.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaRole")  # Allow Lambda invocation
+            ]
+        )
+
+        # Add additional permissions for the EventBridge Target (if necessary)
+        scheduler_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["lambda:InvokeFunction"],
+                resources=["*"]  # Replace with specific ARNs of the Lambda functions if you want tighter security
+            )
+        )
+
         # Define SQS Queue for Failure Handling
         reminders_queue = sqs.Queue(self, "RemindersQueue")
         reminders_queue.apply_removal_policy(RemovalPolicy.RETAIN)
@@ -54,7 +72,7 @@ class RemindMeBackend(Stack):
             "SetReminderByTextFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="set_reminder_by_text.handler",
-            timeout=Duration.seconds(15),
+            timeout=Duration.seconds(30),
             code=_lambda.Code.from_asset("backend/lambdas/set_reminder_by_text"),
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
@@ -68,7 +86,8 @@ class RemindMeBackend(Stack):
                 "REMINDERS_QUEUE_ARN": reminders_queue.queue_arn,
                 "REMINDERS_QUEUE_URL": reminders_queue.queue_url,
                 "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-                "EVENTBRIDGE_TARGET": os.getenv("EVENTBRIDGE_TARGET")
+                "EVENTBRIDGE_TARGET": os.getenv("EVENTBRIDGE_TARGET"),
+                "SCHEDULER_ROLE_ARN": scheduler_role.role_arn
             },
             architecture=_lambda.Architecture.X86_64
         )
@@ -79,7 +98,7 @@ class RemindMeBackend(Stack):
             "SetReminderManuallyFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="set_reminder_manually.handler",
-            timeout=Duration.seconds(15),
+            timeout=Duration.seconds(30),
             code=_lambda.Code.from_asset("backend/lambdas/set_reminder_manually"),
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
@@ -93,7 +112,8 @@ class RemindMeBackend(Stack):
                 "REMINDERS_QUEUE_ARN": reminders_queue.queue_arn,
                 "REMINDERS_QUEUE_URL": reminders_queue.queue_url,
                 "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-                "EVENTBRIDGE_TARGET": os.getenv("EVENTBRIDGE_TARGET")
+                "EVENTBRIDGE_TARGET": os.getenv("EVENTBRIDGE_TARGET"),
+                "SCHEDULER_ROLE_ARN": scheduler_role.role_arn
             },
             architecture=_lambda.Architecture.X86_64
         )
@@ -104,7 +124,7 @@ class RemindMeBackend(Stack):
             "ManageCustomerDeviceInfo",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="manage_customer_device_info.handler",
-            timeout=Duration.seconds(15),
+            timeout=Duration.seconds(30),
             code=_lambda.Code.from_asset("backend/lambdas/manage_customer_device_info"),
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
@@ -125,7 +145,7 @@ class RemindMeBackend(Stack):
             "GetReminderListFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="get_reminder_list.handler",
-            timeout=Duration.seconds(15),
+            timeout=Duration.seconds(30),
             code=_lambda.Code.from_asset("backend/lambdas/get_reminder_list"),
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
@@ -147,7 +167,7 @@ class RemindMeBackend(Stack):
             "MarkReminderCompleteFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="mark_reminder_complete.handler",
-            timeout=Duration.seconds(15),
+            timeout=Duration.seconds(30),
             code=_lambda.Code.from_asset("backend/lambdas/mark_reminder_complete"),
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
@@ -168,7 +188,7 @@ class RemindMeBackend(Stack):
             "ProcessEventsFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="process_events.handler",
-            timeout=Duration.seconds(15),
+            timeout=Duration.seconds(30),
             code=_lambda.Code.from_asset("backend/lambdas/process_events"),
             layers=[
                 _lambda.LayerVersion.from_layer_version_arn(
@@ -199,14 +219,38 @@ class RemindMeBackend(Stack):
         # Add EventBridge permissions to the Lambda roles
         set_reminder_by_text_lambda.add_to_role_policy(
             iam.PolicyStatement(
-                actions=["events:PutRule", "events:PutTargets"],
-                resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
+                actions=[
+                    "events:PutRule",
+                    "events:PutTargets",
+                    "scheduler:CreateSchedule",
+                    "scheduler:UpdateSchedule",
+                    "scheduler:DeleteSchedule",
+                    "scheduler:GetSchedule",
+                    "iam:PassRole"
+                ],
+                resources=[
+                    f"arn:aws:events:{self.region}:{self.account}:rule/*",
+                    f"arn:aws:scheduler:{self.region}:{self.account}:schedule/*",
+                    scheduler_role.role_arn,
+                ]
             )
         )
         set_reminder_manually_lambda.add_to_role_policy(
             iam.PolicyStatement(
-                actions=["events:PutRule", "events:PutTargets"],
-                resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
+                actions=[
+                    "events:PutRule",
+                    "events:PutTargets",
+                    "scheduler:CreateSchedule",
+                    "scheduler:UpdateSchedule",
+                    "scheduler:DeleteSchedule",
+                    "scheduler:GetSchedule",
+                    "iam:PassRole"
+                ],
+                resources=[
+                    f"arn:aws:events:{self.region}:{self.account}:rule/*",
+                    f"arn:aws:scheduler:{self.region}:{self.account}:schedule/*",
+                    scheduler_role.role_arn,
+                ]
             )
         )
         get_reminder_list_lambda.add_to_role_policy(

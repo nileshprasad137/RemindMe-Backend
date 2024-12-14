@@ -65,7 +65,7 @@ def get_reminder_schedule_json(reminder_text: str):
         dict: Details of the processed reminder which contains reminder frequency and other reminder details.
     """
     # Set up the OpenAI model
-    model = ChatOpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"), model="gpt-3.5-turbo")
+    model = ChatOpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"), model="gpt-4o-mini")
     # Set up the JSON output parser with the Reminder model
     parser = JsonOutputParser(pydantic_object=Reminder)
     # Define the prompt template with enhanced instructions
@@ -81,6 +81,7 @@ def get_reminder_schedule_json(reminder_text: str):
             "   Try to understand whether the reminder is for a specific day / week or it repeats recurringly."
             "   Try to extract time at which you need to remind else default to 11am."
             "   Try to understand phrases like alternate days."
+            "   When time is not specified, try to take an approximate guess. For example, at night means 9pm, similarly, take the guess for different time of day."
             "2. Populate 'repeat_frequency' directly with integer values if provided, for fields like 'daily', 'weekly', etc.\n"
             "   - Do not introduce new keys such as 'interval'. Instead, set 'daily': 2 for 'every 2 days'.\n"
             "3. For specific days, use 'selected_days_of_week' as a list of integers (e.g., [1, 4] for Sunday and Wednesday), "

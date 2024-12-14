@@ -21,6 +21,7 @@ scheduler = boto3.client('scheduler')
 REMINDERS_TABLE_NAME = os.environ["REMINDERS_TABLE_NAME"]
 REMINDERS_QUEUE_URL = os.environ["REMINDERS_QUEUE_URL"]
 EVENTBRIDGE_TARGET = os.environ["EVENTBRIDGE_TARGET"]
+SCHEDULER_ROLE_ARN = os.environ["SCHEDULER_ROLE_ARN"]
 
 
 def is_one_time_schedule(expression):
@@ -65,6 +66,7 @@ def handler(event, context):
                 },
                 Target={
                     'Arn': EVENTBRIDGE_TARGET,
+                    'RoleArn': SCHEDULER_ROLE_ARN 
                 }
             )
             print("One-time EventBridge Scheduler job created successfully.")
