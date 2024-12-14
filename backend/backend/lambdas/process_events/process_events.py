@@ -62,6 +62,8 @@ def send_push_notification(device_token_id, task, reminder_message):
 
         # Send the notification request
         response = requests.post(url, headers=headers, json=message)
+
+        print(response.text)
         
         # Check response and return result
         if response.status_code == 200:
@@ -81,6 +83,8 @@ def handler(event, context):
         # Parse event data to get the device_id and reminder_id
         device_id = event.get("device_id")
         reminder_id = event.get("reminder_id")
+
+        print("Received Event:", json.dumps(event))
 
         if not device_id or not reminder_id:
             print("device id or reminder_id not sent")

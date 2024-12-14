@@ -61,12 +61,17 @@ def handler(event, context):
             scheduler.create_schedule(
                 Name=rule_name,
                 ScheduleExpression=expression,
+                ScheduleExpressionTimezone="Asia/Kolkata",
                 FlexibleTimeWindow={
                     'Mode': 'OFF'
                 },
                 Target={
                     'Arn': EVENTBRIDGE_TARGET,
-                    'RoleArn': SCHEDULER_ROLE_ARN 
+                    'RoleArn': SCHEDULER_ROLE_ARN ,
+                    'Input': json.dumps({
+                        "device_id": device_id,
+                        "reminder_id": reminder_id
+                    })  # Pass device_id and reminder_id as Input
                 }
             )
             print("One-time EventBridge Scheduler job created successfully.")

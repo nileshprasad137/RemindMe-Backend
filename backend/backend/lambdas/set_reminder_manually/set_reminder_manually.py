@@ -54,6 +54,7 @@ def handler(event, context):
             scheduler.create_schedule(
                 Name=rule_name,
                 ScheduleExpression=expression,
+                ScheduleExpressionTimezone="Asia/Kolkata",
                 FlexibleTimeWindow={
                     'Mode': 'OFF'
                 },
