@@ -92,11 +92,15 @@ def get_reminder_schedule_json(reminder_text: str):
             "Instructions:\n"
             "1. **Interpretation of Dates and Times**:\n"
             "   - Provide a relative date phrase for 'start_date_phrase' "
-            "   that describes when the reminder should start (e.g., 'tomorrow,' 'next week').\n"
-            "   - Try to understand whether the reminder is for a specific day/week or it repeats recurringly.\n"
-            "   - Try to extract the time at which the reminder is needed; if no time is specified, default to 11am.\n"
-            "   - Understand phrases like 'alternate days' or 'weekdays' and translate them into structured formats.\n"
-            "   - For ambiguous phrases like 'at night,' approximate the time to 9pm, and similarly for other time-of-day phrases.\n\n"
+            "     that describes when the reminder should start (e.g., 'tomorrow,' 'next week').\n"
+            "   - Understand whether the reminder is for a specific day/week or it repeats recurringly.\n"
+            "   - Extract the time at which the reminder is needed; if no specific time is provided, default to 11:00 AM.\n"
+            "   - For ambiguous or relative time-of-day phrases like:\n"
+            "     - 'morning,' map to 8:00 AM.\n"
+            "     - 'afternoon,' map to 2:00 PM.\n"
+            "     - 'evening,' map to 6:00 PM.\n"
+            "     - 'night,' map to 9:00 PM.\n"
+            "   - Translate phrases like 'alternate days,' 'weekdays,' or 'weekends' into structured formats.\n\n"
             
             "2. **Day of the Week Mapping**:\n"
             "   - Use the following mapping for days of the week when interpreting selected days:\n"
@@ -107,7 +111,7 @@ def get_reminder_schedule_json(reminder_text: str):
             "   - Do not introduce new keys such as 'interval'. Instead, set 'daily': 2 for 'every 2 days'.\n\n"
             
             "4. For specific days, use 'selected_days_of_week' as a list of integers (e.g., [1, 4] for Sunday and Wednesday), "
-            "and 'selected_days_of_month' as a list of integers for days of the month (e.g., [1, 15]).\n\n"
+            "   and 'selected_days_of_month' as a list of integers for days of the month (e.g., [1, 15]).\n\n"
             
             "5. **Tags Extraction**:\n"
             "   - Identify single or double-word tags from the reminder that represent the main topics or categories.\n\n"
@@ -182,24 +186,12 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
         # One-time expression for a specific date and time in UTC
         expression = f"at({start_datetime_utc.strftime('%Y-%m-%dT%H:%M:%S')})"
     
-    elif repeat_frequency.get("daily"):
-        days = repeat_frequency["daily"]
-        unit = "day" if days == 1 else "days"
-        expression = f"rate({days} {unit})"
-    
     elif repeat_frequency.get("hourly"):
+        # Use rate expression for hourly schedules
         hours = repeat_frequency["hourly"]
         unit = "hour" if hours == 1 else "hours"
         expression = f"rate({hours} {unit})"
-    
-    elif repeat_frequency.get("selected_days_of_week") or repeat_frequency.get("daily"):
-        # Use cron for specific days of the week
-        selected_days_of_week = repeat_frequency["selected_days_of_week"]
-        day_map = {1: 'SUN', 2: 'MON', 3: 'TUE', 4: 'WED', 5: 'THU', 6: 'FRI', 7: 'SAT'}
-        days = [day_map[day] for day in selected_days_of_week]
-        day_str = ",".join(days)
-        expression = f"cron({start_time} ? * {day_str} *)"
-    
+
     elif repeat_frequency.get("weekly"):
         # Convert weeks to days for the rate expression
         weeks = repeat_frequency["weekly"]
@@ -207,8 +199,25 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
         unit = "day" if days == 1 else "days"
         expression = f"rate({days} {unit})"
     
+    elif repeat_frequency.get("daily"):
+        # Use cron for daily schedules with interval
+        interval = repeat_frequency["daily"]
+        if interval == 1:
+            expression = f"cron({start_time} * * ? *)"  # Every day
+        else:
+            expression = f"cron({start_time} 1/{interval} * ? *)"  # Every N days
+    
+    elif repeat_frequency.get("selected_days_of_week"):
+        # Use cron for specific days of the week
+        selected_days_of_week = repeat_frequency["selected_days_of_week"]
+        day_map = {1: 'SUN', 2: 'MON', 3: 'TUE', 4: 'WED', 5: 'THU', 6: 'FRI', 7: 'SAT'}
+        days = [day_map[day] for day in selected_days_of_week]
+        day_str = ",".join(days)
+        expression = f"cron({start_time} ? * {day_str} *)"
+    
     elif repeat_frequency.get("selected_days_of_month"):
-        selected_days_of_month = repeat_frequency.get("selected_days_of_month", [])
+        # Use cron for specific days of the month
+        selected_days_of_month = repeat_frequency["selected_days_of_month"]
         if selected_days_of_month:
             day_str = ",".join(map(str, selected_days_of_month))
             expression = f"cron({start_time} {day_str} * ? *)"
@@ -216,17 +225,15 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
             return None
     
     elif repeat_frequency.get("monthly"):
-        # Generate a cron expression for monthly schedules
-        selected_days_of_month = repeat_frequency.get("selected_days_of_month", [])
-        if selected_days_of_month:
-            day_str = ",".join(map(str, selected_days_of_month))
-            expression = f"cron({start_time} {day_str} * ? *)"
-        else:
-            # Default to the start date's day of the month
+        # Use cron for monthly schedules
+        interval = repeat_frequency["monthly"]
+        if interval == 1:
             expression = f"cron({start_time} {start_datetime_utc.day} * ? *)"
+        else:
+            expression = f"cron({start_time} {start_datetime_utc.day} 1/{interval} ? *)"
     
     elif repeat_frequency.get("yearly"):
-        # Yearly schedule with a specific month and day
+        # Use cron for yearly schedules
         expression = f"cron({start_time} {start_datetime_utc.day} {start_datetime_utc.month} ? *)"
     
     else:

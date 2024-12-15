@@ -50,6 +50,19 @@ day_of_week_map = {
 }
 
 
+def sanitize_time_format(time_str):
+    """
+    Ensures the time string is in the correct format for parsing.
+    
+    Args:
+        time_str (str): Input time string (e.g., '5:38 p.m.')
+
+    Returns:
+        str: Sanitized time string (e.g., '5:38 PM')
+    """
+    return time_str.strip().replace('.', '').upper()
+
+
 def generate_eventbridge_expression(start_date, time_str, repeat_frequency, timezone="Asia/Kolkata"):
     """
     Generates EventBridge schedule expression in UTC by converting input datetime to UTC.
@@ -63,9 +76,12 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
     Returns:
     - str: EventBridge schedule expression in UTC
     """
-    # Convert start_date and time_str to datetime format
+    # Sanitize the time string
+    sanitized_time = sanitize_time_format(time_str)
+    
+    # Convert start_date and sanitized_time to datetime format
     local_timezone = pytz.timezone(timezone)
-    start_datetime_local = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
+    start_datetime_local = datetime.strptime(f"{start_date} {sanitized_time}", "%d-%m-%Y %I:%M %p")
     start_datetime_local = local_timezone.localize(start_datetime_local)
 
     # Convert to UTC
@@ -77,15 +93,26 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
         # One-time expression for a specific date and time in UTC
         expression = f"at({start_datetime_utc.strftime('%Y-%m-%dT%H:%M:%S')})"
     
-    elif repeat_frequency.get("daily"):
-        days = repeat_frequency["daily"]
-        unit = "day" if days == 1 else "days"
-        expression = f"rate({days} {unit})"
-    
     elif repeat_frequency.get("hourly"):
+        # Use rate expression for hourly schedules
         hours = repeat_frequency["hourly"]
         unit = "hour" if hours == 1 else "hours"
         expression = f"rate({hours} {unit})"
+
+    elif repeat_frequency.get("weekly"):
+        # Convert weeks to days for the rate expression
+        weeks = repeat_frequency["weekly"]
+        days = weeks * 7  # Convert weeks to days
+        unit = "day" if days == 1 else "days"
+        expression = f"rate({days} {unit})"
+    
+    elif repeat_frequency.get("daily"):
+        # Use cron for daily schedules with interval
+        interval = repeat_frequency["daily"]
+        if interval == 1:
+            expression = f"cron({start_time} * * ? *)"  # Every day
+        else:
+            expression = f"cron({start_time} 1/{interval} * ? *)"  # Every N days
     
     elif repeat_frequency.get("selected_days_of_week"):
         # Use cron for specific days of the week
@@ -95,15 +122,9 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
         day_str = ",".join(days)
         expression = f"cron({start_time} ? * {day_str} *)"
     
-    elif repeat_frequency.get("weekly"):
-        # Convert weeks to days for the rate expression
-        weeks = repeat_frequency["weekly"]
-        days = weeks * 7  # Convert weeks to days
-        unit = "day" if days == 1 else "days"
-        expression = f"rate({days} {unit})"
-    
     elif repeat_frequency.get("selected_days_of_month"):
-        selected_days_of_month = repeat_frequency.get("selected_days_of_month", [])
+        # Use cron for specific days of the month
+        selected_days_of_month = repeat_frequency["selected_days_of_month"]
         if selected_days_of_month:
             day_str = ",".join(map(str, selected_days_of_month))
             expression = f"cron({start_time} {day_str} * ? *)"
@@ -111,17 +132,15 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
             return None
     
     elif repeat_frequency.get("monthly"):
-        # Generate a cron expression for monthly schedules
-        selected_days_of_month = repeat_frequency.get("selected_days_of_month", [])
-        if selected_days_of_month:
-            day_str = ",".join(map(str, selected_days_of_month))
-            expression = f"cron({start_time} {day_str} * ? *)"
-        else:
-            # Default to the start date's day of the month
+        # Use cron for monthly schedules
+        interval = repeat_frequency["monthly"]
+        if interval == 1:
             expression = f"cron({start_time} {start_datetime_utc.day} * ? *)"
+        else:
+            expression = f"cron({start_time} {start_datetime_utc.day} 1/{interval} ? *)"
     
     elif repeat_frequency.get("yearly"):
-        # Yearly schedule with a specific month and day
+        # Use cron for yearly schedules
         expression = f"cron({start_time} {start_datetime_utc.day} {start_datetime_utc.month} ? *)"
     
     else:
