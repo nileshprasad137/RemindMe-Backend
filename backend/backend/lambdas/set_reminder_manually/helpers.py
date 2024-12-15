@@ -2,6 +2,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from typing import Optional, List
+import pytz
 
 # Load environment variables from .env
 load_dotenv()
@@ -48,18 +49,33 @@ day_of_week_map = {
     7: "Saturday"
 }
 
-def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
+
+def generate_eventbridge_expression(start_date, time_str, repeat_frequency, timezone="Asia/Kolkata"):
     """
-    Generates eventbridge schedule expression
+    Generates EventBridge schedule expression in UTC by converting input datetime to UTC.
+
+    Parameters:
+    - start_date (str): Date in the format "dd-mm-yyyy"
+    - time_str (str): Time in the format "hh:mm AM/PM"
+    - repeat_frequency (dict): Frequency of the schedule (e.g., daily, weekly, etc.)
+    - timezone (str): Timezone of the input datetime (default is Asia/Kolkata)
+
+    Returns:
+    - str: EventBridge schedule expression in UTC
     """
     # Convert start_date and time_str to datetime format
-    start_datetime = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
-    start_time = f"{start_datetime.minute} {start_datetime.hour}"
+    local_timezone = pytz.timezone(timezone)
+    start_datetime_local = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
+    start_datetime_local = local_timezone.localize(start_datetime_local)
+
+    # Convert to UTC
+    start_datetime_utc = start_datetime_local.astimezone(pytz.utc)
+    start_time = f"{start_datetime_utc.minute} {start_datetime_utc.hour}"
 
     # Determine the EventBridge expression based on frequency
     if not repeat_frequency:
-        # One-time expression for a specific date and time
-        expression = f"at({start_datetime.strftime('%Y-%m-%dT%H:%M:%S')})"
+        # One-time expression for a specific date and time in UTC
+        expression = f"at({start_datetime_utc.strftime('%Y-%m-%dT%H:%M:%S')})"
     
     elif repeat_frequency.get("daily"):
         days = repeat_frequency["daily"]
@@ -102,17 +118,17 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
             expression = f"cron({start_time} {day_str} * ? *)"
         else:
             # Default to the start date's day of the month
-            expression = f"cron({start_time} {start_datetime.day} * ? *)"
+            expression = f"cron({start_time} {start_datetime_utc.day} * ? *)"
     
     elif repeat_frequency.get("yearly"):
         # Yearly schedule with a specific month and day
-        expression = f"cron({start_time} {start_datetime.day} {start_datetime.month} ? *)"
+        expression = f"cron({start_time} {start_datetime_utc.day} {start_datetime_utc.month} ? *)"
     
     else:
         # One-time expression for a specific date and time
-        expression = f"at({start_datetime.strftime('%Y-%m-%dT%H:%M:%S')})"
+        expression = f"at({start_datetime_utc.strftime('%Y-%m-%dT%H:%M:%S')})"
     
-    print(f"Generated EventBridge Expression: {expression}")
+    print(f"Generated EventBridge Expression (UTC): {expression}")
     return expression
 
 

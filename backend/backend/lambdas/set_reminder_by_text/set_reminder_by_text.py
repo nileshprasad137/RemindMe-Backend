@@ -77,11 +77,29 @@ def handler(event, context):
             print("One-time EventBridge Scheduler job created successfully.")
         else:
             # Create the EventBridge rule
-            events.put_rule(
+            rule_response = events.put_rule(
                 Name=rule_name,
                 ScheduleExpression=expression,
-                State="ENABLED"
+                State="ENABLED",
+                Description=f"Reminder: {reminder_scheduled_message}",
             )
+            # Attach target to the rule
+            target_response = events.put_targets(
+                Rule=rule_name,
+                Targets=[
+                    {
+                        "Id": f"Target_{reminder_id}",
+                        "Arn": EVENTBRIDGE_TARGET,  # Target Lambda or other service
+                        "Input": json.dumps({
+                            "device_id": device_id,
+                            "reminder_id": reminder_id
+                        })  # Pass required input
+                    }
+                ]
+            )
+            print("EventBridge rule and target created successfully.")
+            print("Rule Response:", rule_response)
+            print("Target Response:", target_response)
 
         # Add the reminder entry to DynamoDB directly
         reminders_table = dynamodb.Table(REMINDERS_TABLE_NAME)

@@ -1,4 +1,5 @@
 import os
+import pytz
 import dateparser
 import parsedatetime
 from datetime import datetime
@@ -54,6 +55,8 @@ day_of_week_map = {
     7: "Saturday"
 }
 
+day_of_week_mapping_string = ", ".join([f"{key}: {value}" for key, value in day_of_week_map.items()])
+
 
 def get_reminder_schedule_json(reminder_text: str):
     """ Returns the reminder json with schedule details
@@ -78,15 +81,23 @@ def get_reminder_schedule_json(reminder_text: str):
             "1. **Interpretation of Dates and Times**:\n"
             "   - Provide a relative date phrase for 'start_date_phrase' "
             "   that describes when the reminder should start (e.g., 'tomorrow,' 'next week').\n"
-            "   Try to understand whether the reminder is for a specific day / week or it repeats recurringly."
-            "   Try to extract time at which you need to remind else default to 11am."
-            "   Try to understand phrases like alternate days."
-            "   When time is not specified, try to take an approximate guess. For example, at night means 9pm, similarly, take the guess for different time of day."
-            "2. Populate 'repeat_frequency' directly with integer values if provided, for fields like 'daily', 'weekly', etc.\n"
-            "   - Do not introduce new keys such as 'interval'. Instead, set 'daily': 2 for 'every 2 days'.\n"
-            "3. For specific days, use 'selected_days_of_week' as a list of integers (e.g., [1, 4] for Sunday and Wednesday), "
+            "   - Try to understand whether the reminder is for a specific day/week or it repeats recurringly.\n"
+            "   - Try to extract the time at which the reminder is needed; if no time is specified, default to 11am.\n"
+            "   - Understand phrases like 'alternate days' or 'weekdays' and translate them into structured formats.\n"
+            "   - For ambiguous phrases like 'at night,' approximate the time to 9pm, and similarly for other time-of-day phrases.\n\n"
+            
+            "2. **Day of the Week Mapping**:\n"
+            "   - Use the following mapping for days of the week when interpreting selected days:\n"
+            "     {day_of_week_mapping_string}\n"
+            "   - For example, 'Sunday' maps to 1, 'Wednesday' maps to 4, and so on.\n\n"
+            
+            "3. Populate 'repeat_frequency' directly with integer values if provided, for fields like 'daily', 'weekly', etc.\n"
+            "   - Do not introduce new keys such as 'interval'. Instead, set 'daily': 2 for 'every 2 days'.\n\n"
+            
+            "4. For specific days, use 'selected_days_of_week' as a list of integers (e.g., [1, 4] for Sunday and Wednesday), "
             "and 'selected_days_of_month' as a list of integers for days of the month (e.g., [1, 15]).\n\n"
-            "4. **Tags Extraction**:\n"
+            
+            "5. **Tags Extraction**:\n"
             "   - Identify single or double-word tags from the reminder that represent the main topics or categories.\n\n"
             
             "Output the information in structured JSON with fields: task, start_date, end_date, time, repeat_frequency, and tags.\n\n"
@@ -96,7 +107,10 @@ def get_reminder_schedule_json(reminder_text: str):
             "Reminder Text: {query}"
         ),
         input_variables=["query"],
-        partial_variables={"format_instructions": parser.get_format_instructions()},
+        partial_variables={
+            "format_instructions": parser.get_format_instructions(),
+            "day_of_week_mapping_string": day_of_week_mapping_string,
+        },
     )
     # Create a chain that combines the prompt, model, and parser
     chain = prompt | model | parser
@@ -126,18 +140,32 @@ def get_reminder_schedule_json(reminder_text: str):
     return parsed_data
 
 
-def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
+def generate_eventbridge_expression(start_date, time_str, repeat_frequency, timezone="Asia/Kolkata"):
     """
-    Generates EventBridge schedule expression.
+    Generates EventBridge schedule expression in UTC by converting input datetime to UTC.
+
+    Parameters:
+    - start_date (str): Date in the format "dd-mm-yyyy"
+    - time_str (str): Time in the format "hh:mm AM/PM"
+    - repeat_frequency (dict): Frequency of the schedule (e.g., daily, weekly, etc.)
+    - timezone (str): Timezone of the input datetime (default is Asia/Kolkata)
+
+    Returns:
+    - str: EventBridge schedule expression in UTC
     """
-    # Parse start_date and normalize time_str using dateparser
-    start_datetime = datetime.strptime(f"{start_date} {dateparser.parse(time_str).strftime('%I:%M %p')}", "%d-%m-%Y %I:%M %p")
-    start_time = f"{start_datetime.minute} {start_datetime.hour}"
+    # Convert start_date and time_str to datetime format
+    local_timezone = pytz.timezone(timezone)
+    start_datetime_local = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
+    start_datetime_local = local_timezone.localize(start_datetime_local)
+
+    # Convert to UTC
+    start_datetime_utc = start_datetime_local.astimezone(pytz.utc)
+    start_time = f"{start_datetime_utc.minute} {start_datetime_utc.hour}"
 
     # Determine the EventBridge expression based on frequency
     if not repeat_frequency:
-        # One-time expression for a specific date and time
-        expression = f"at({start_datetime.strftime('%Y-%m-%dT%H:%M:%S')})"
+        # One-time expression for a specific date and time in UTC
+        expression = f"at({start_datetime_utc.strftime('%Y-%m-%dT%H:%M:%S')})"
     
     elif repeat_frequency.get("daily"):
         days = repeat_frequency["daily"]
@@ -150,6 +178,7 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
         expression = f"rate({hours} {unit})"
     
     elif repeat_frequency.get("selected_days_of_week"):
+        # Use cron for specific days of the week
         selected_days_of_week = repeat_frequency["selected_days_of_week"]
         day_map = {1: 'SUN', 2: 'MON', 3: 'TUE', 4: 'WED', 5: 'THU', 6: 'FRI', 7: 'SAT'}
         days = [day_map[day] for day in selected_days_of_week]
@@ -157,8 +186,9 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
         expression = f"cron({start_time} ? * {day_str} *)"
     
     elif repeat_frequency.get("weekly"):
+        # Convert weeks to days for the rate expression
         weeks = repeat_frequency["weekly"]
-        days = weeks * 7
+        days = weeks * 7  # Convert weeks to days
         unit = "day" if days == 1 else "days"
         expression = f"rate({days} {unit})"
     
@@ -171,20 +201,24 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency):
             return None
     
     elif repeat_frequency.get("monthly"):
+        # Generate a cron expression for monthly schedules
         selected_days_of_month = repeat_frequency.get("selected_days_of_month", [])
         if selected_days_of_month:
             day_str = ",".join(map(str, selected_days_of_month))
             expression = f"cron({start_time} {day_str} * ? *)"
         else:
-            expression = f"cron({start_time} {start_datetime.day} * ? *)"
+            # Default to the start date's day of the month
+            expression = f"cron({start_time} {start_datetime_utc.day} * ? *)"
     
     elif repeat_frequency.get("yearly"):
-        expression = f"cron({start_time} {start_datetime.day} {start_datetime.month} ? *)"
+        # Yearly schedule with a specific month and day
+        expression = f"cron({start_time} {start_datetime_utc.day} {start_datetime_utc.month} ? *)"
     
     else:
-        expression = f"at({start_datetime.strftime('%Y-%m-%dT%H:%M:%S')})"
+        # One-time expression for a specific date and time
+        expression = f"at({start_datetime_utc.strftime('%Y-%m-%dT%H:%M:%S')})"
     
-    print(f"Generated EventBridge Expression: {expression}")
+    print(f"Generated EventBridge Expression (UTC): {expression}")
     return expression
 
 
