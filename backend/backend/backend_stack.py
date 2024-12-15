@@ -44,6 +44,15 @@ class RemindMeBackend(Stack):
         )
         customer_devices_table.apply_removal_policy(RemovalPolicy.RETAIN)
 
+        feedback_table = dynamodb.Table(
+            self,
+            "FeedbackTable",
+            partition_key=dynamodb.Attribute(name="feedback_id", type=dynamodb.AttributeType.STRING),
+            removal_policy=RemovalPolicy.RETAIN
+        )
+        feedback_table.apply_removal_policy(RemovalPolicy.RETAIN)
+
+
         # Define an IAM Role for the EventBridge Scheduler
         scheduler_role = iam.Role(
             self, 
@@ -204,6 +213,26 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
+        submit_feedback_lambda = _lambda.Function(
+            self,
+            "SubmitFeedbackFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="submit_feedback.handler",
+            timeout=Duration.seconds(30),
+            code=_lambda.Code.from_asset("backend/lambdas/submit_feedback"),
+            layers=[
+                _lambda.LayerVersion.from_layer_version_arn(
+                    self,
+                    "DependenciesLayer6",
+                    os.getenv("LAMBDA_LAYER_ARN")
+                )
+            ],
+            environment={
+                "FEEDBACK_TABLE_NAME": feedback_table.table_name
+            },
+            architecture=_lambda.Architecture.X86_64
+        )
+
         # Grant Lambda permissions to DynamoDB table and SQS
         reminders_table.grant_read_write_data(set_reminder_by_text_lambda)
         reminders_table.grant_read_write_data(set_reminder_manually_lambda)
@@ -215,6 +244,7 @@ class RemindMeBackend(Stack):
         reminders_queue.grant_send_messages(set_reminder_manually_lambda)
         customer_devices_table.grant_read_data(process_events_lambda)
         reminders_table.grant_read_data(process_events_lambda)
+        feedback_table.grant_read_write_data(submit_feedback_lambda)
 
         # Add EventBridge permissions to the Lambda roles
         set_reminder_by_text_lambda.add_to_role_policy(
@@ -300,3 +330,8 @@ class RemindMeBackend(Stack):
         manage_customer_device_info_resource = api.root.add_resource("manage-customer-device-info")
         manage_customer_device_info_integration = apigateway.LambdaIntegration(manage_customer_device_info_lambda)
         manage_customer_device_info_resource.add_method("POST", manage_customer_device_info_integration)
+
+        # API Gateway resource for submit-feedback
+        submit_feedback_resource = api.root.add_resource("submit-feedback")
+        submit_feedback_integration = apigateway.LambdaIntegration(submit_feedback_lambda)
+        submit_feedback_resource.add_method("POST", submit_feedback_integration)
