@@ -1,4 +1,5 @@
 import os
+import pytz
 import json
 import boto3
 import re
@@ -156,8 +157,19 @@ def handler(event, context):
                 if eventbridge_expression and start_date and time_str:
                     time_str = dateparser.parse(time_str).strftime('%I:%M %p')
                     start_time = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
+
                     try:
-                        next_occurrences = parse_eventbridge_expression(eventbridge_expression, occurrences=3, start_time=start_time)
+                        next_occurrences = parse_eventbridge_expression(
+                            eventbridge_expression, occurrences=3, start_time=start_time
+                        )
+
+                        # Convert to IST for recurring schedules
+                        ist = pytz.timezone("Asia/Kolkata")
+                        utc = pytz.utc
+                        next_occurrences = [
+                            utc.localize(occ).astimezone(ist) for occ in next_occurrences
+                        ]
+
                         reminder_data["next_occurrences"] = [occ.isoformat() for occ in next_occurrences]
                     except ValueError as e:
                         print(f"Error parsing EventBridge expression for reminder {reminder['SK']}: {e}")

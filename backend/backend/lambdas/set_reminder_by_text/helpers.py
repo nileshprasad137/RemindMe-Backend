@@ -68,7 +68,7 @@ def get_reminder_schedule_json(reminder_text: str):
         dict: Details of the processed reminder which contains reminder frequency and other reminder details.
     """
     # Set up the OpenAI model
-    model = ChatOpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"), model="gpt-4o-mini")
+    model = ChatOpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"), model="gpt-3.5-turbo")
     # Set up the JSON output parser with the Reminder model
     parser = JsonOutputParser(pydantic_object=Reminder)
     # Define the prompt template with enhanced instructions
