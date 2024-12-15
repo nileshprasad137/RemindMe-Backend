@@ -13,6 +13,18 @@ from langchain_openai import ChatOpenAI
 # Load environment variables from .env
 load_dotenv()
 
+def sanitize_time_format(time_str):
+    """
+    Ensures the time string is in the correct format for parsing.
+    
+    Args:
+        time_str (str): Input time string (e.g., '5:38 p.m.')
+
+    Returns:
+        str: Sanitized time string (e.g., '5:38 PM')
+    """
+    return time_str.strip().replace('.', '').upper()
+
 def get_ordinal_suffix(day):
     if 11 <= day <= 13:  # Special case for 11th, 12th, and 13th
         return f"{day}th"
@@ -153,9 +165,12 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
     Returns:
     - str: EventBridge schedule expression in UTC
     """
-    # Convert start_date and time_str to datetime format
+    # Sanitize the time string
+    sanitized_time = sanitize_time_format(time_str)
+    
+    # Convert start_date and sanitized_time to datetime format
     local_timezone = pytz.timezone(timezone)
-    start_datetime_local = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
+    start_datetime_local = datetime.strptime(f"{start_date} {sanitized_time}", "%d-%m-%Y %I:%M %p")
     start_datetime_local = local_timezone.localize(start_datetime_local)
 
     # Convert to UTC
@@ -177,7 +192,7 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
         unit = "hour" if hours == 1 else "hours"
         expression = f"rate({hours} {unit})"
     
-    elif repeat_frequency.get("selected_days_of_week"):
+    elif repeat_frequency.get("selected_days_of_week") or repeat_frequency.get("daily"):
         # Use cron for specific days of the week
         selected_days_of_week = repeat_frequency["selected_days_of_week"]
         day_map = {1: 'SUN', 2: 'MON', 3: 'TUE', 4: 'WED', 5: 'THU', 6: 'FRI', 7: 'SAT'}
