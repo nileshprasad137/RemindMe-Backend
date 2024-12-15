@@ -96,18 +96,17 @@ def handler(event, context):
         existing_device = check_device_id_uniqueness(device_id)
         if existing_device:
             # Device already exists, update the existing record if customer_id matches
-            if existing_device[0]["PK"] != f"CUSTOMER#{body.get('customer_id')}":
-                return {
-                    "statusCode": 400,
-                    "body": json.dumps({"error": "Device ID already registered under a different customer"}),
-                    "headers": {
-                        "Access-Control-Allow-Origin": "*",  # or specify your domain
-                        "Access-Control-Allow-Headers": "Content-Type",
-                        "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
-                    },
-                }
-            # Update the existing device record
             customer_id = existing_device[0]["PK"].split("#")[1]
+            existing_device_token_id = existing_device[0].get("device_token_id")
+
+            # If the device_token_id is different, update it
+            if existing_device_token_id != device_token_id:
+                update_device_info(
+                    customer_id=customer_id,
+                    device_id=device_id,
+                    device_token_id=device_token_id
+                )
+
         else:
             # Generate or use provided customer_id if device is new
             customer_id = body.get("customer_id") or generate_customer_id()
