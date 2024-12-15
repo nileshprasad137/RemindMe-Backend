@@ -163,12 +163,13 @@ def handler(event, context):
                             eventbridge_expression, occurrences=3, start_time=start_time
                         )
 
-                        # Convert to IST for recurring schedules
-                        ist = pytz.timezone("Asia/Kolkata")
-                        utc = pytz.utc
-                        next_occurrences = [
-                            utc.localize(occ).astimezone(ist) for occ in next_occurrences
-                        ]
+                        if not eventbridge_expression.startswith("at("):
+                            # Convert to IST for recurring schedules
+                            ist = pytz.timezone("Asia/Kolkata")
+                            utc = pytz.utc
+                            next_occurrences = [
+                                utc.localize(occ).astimezone(ist) for occ in next_occurrences
+                            ]
 
                         reminder_data["next_occurrences"] = [occ.isoformat() for occ in next_occurrences]
                     except ValueError as e:

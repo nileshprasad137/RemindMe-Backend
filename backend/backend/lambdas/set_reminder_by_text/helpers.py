@@ -184,7 +184,7 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
     # Determine the EventBridge expression based on frequency
     if not repeat_frequency:
         # One-time expression for a specific date and time in UTC
-        expression = f"at({start_datetime_utc.strftime('%Y-%m-%dT%H:%M:%S')})"
+        expression = f"at({start_datetime_local.strftime('%Y-%m-%dT%H:%M:%S')})"
     
     elif repeat_frequency.get("hourly"):
         # Use rate expression for hourly schedules
