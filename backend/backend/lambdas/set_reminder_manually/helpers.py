@@ -98,13 +98,6 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
         hours = repeat_frequency["hourly"]
         unit = "hour" if hours == 1 else "hours"
         expression = f"rate({hours} {unit})"
-
-    elif repeat_frequency.get("weekly"):
-        # Convert weeks to days for the rate expression
-        weeks = repeat_frequency["weekly"]
-        days = weeks * 7  # Convert weeks to days
-        unit = "day" if days == 1 else "days"
-        expression = f"rate({days} {unit})"
     
     elif repeat_frequency.get("daily"):
         # Use cron for daily schedules with interval
@@ -121,6 +114,13 @@ def generate_eventbridge_expression(start_date, time_str, repeat_frequency, time
         days = [day_map[day] for day in selected_days_of_week]
         day_str = ",".join(days)
         expression = f"cron({start_time} ? * {day_str} *)"
+    
+    elif repeat_frequency.get("weekly"):
+        # Convert weeks to days for the rate expression
+        weeks = repeat_frequency["weekly"]
+        days = weeks * 7  # Convert weeks to days
+        unit = "day" if days == 1 else "days"
+        expression = f"rate({days} {unit})"
     
     elif repeat_frequency.get("selected_days_of_month"):
         # Use cron for specific days of the month
