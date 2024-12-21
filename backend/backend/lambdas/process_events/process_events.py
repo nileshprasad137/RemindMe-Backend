@@ -26,7 +26,7 @@ def get_access_token():
 
 def send_push_notification(device_token_id, task, reminder_message):
     """
-    Sends a high-priority FCM notification with vibration enabled to the specified Android device.
+    Sends a high-priority, vibrating, sticky FCM notification with a custom vibration pattern.
     """
     try:
         # Get the access token for FCM
@@ -45,7 +45,7 @@ def send_push_notification(device_token_id, task, reminder_message):
         }
         url = f'https://fcm.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/messages:send'
 
-        # FCM message body
+        # FCM message body with a custom vibration pattern
         message = {
             "message": {
                 "token": device_token_id,
@@ -53,8 +53,11 @@ def send_push_notification(device_token_id, task, reminder_message):
                 "android": {
                     "priority": "high",
                     "notification": {
-                        "default_vibrate_timings": True,
-                        "sound": "default"
+                        "default_vibrate_timings": False,  # Disable default vibration timings
+                        "vibrate_timings": ["0s", "0.5s", "1s", "0.5s", "2s", "2s"],  # Custom vibration pattern
+                        "sound": "default",
+                        "sticky": True,  # Makes the notification sticky
+                        "channel_id": "reminder_channel",  # Use a dedicated channel
                     }
                 }
             }
