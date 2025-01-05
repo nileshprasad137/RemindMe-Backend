@@ -157,6 +157,11 @@ def handler(event, context):
                 if eventbridge_expression and start_date and time_str:
                     time_str = dateparser.parse(time_str).strftime('%I:%M %p')
                     start_time = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
+                    # Get the current datetime
+                    now = datetime.now()
+                    # Ensure start_time is the maximum of now and start_time
+                    start_time = max(start_time, now)
+
 
                     try:
                         next_occurrences = parse_eventbridge_expression(
