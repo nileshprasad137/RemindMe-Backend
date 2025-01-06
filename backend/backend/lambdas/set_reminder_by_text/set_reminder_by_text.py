@@ -93,7 +93,7 @@ def handler(event, context):
                         "Input": json.dumps({
                             "device_id": device_id,
                             "reminder_id": reminder_id
-                        })  # Pass required input
+                        }),
                     }
                 ]
             )

@@ -7,9 +7,9 @@ from aws_cdk import (
     aws_apigateway as apigateway,
     aws_sqs as sqs,
     aws_dynamodb as dynamodb,
-    RemovalPolicy,
     aws_iam as iam,
     aws_events as events,
+    RemovalPolicy,
 )
 from constructs import Construct
 
@@ -19,18 +19,17 @@ class RemindMeBackend(Stack):
     def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
-        # Define DynamoDB table for Reminders
+        # ----------------------
+        # 1) DYNAMODB TABLES
+        # ----------------------
         reminders_table = dynamodb.Table(
             self, 
             "RemindersTable",
             partition_key=dynamodb.Attribute(name="PK", type=dynamodb.AttributeType.STRING),
             sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING)
         )
-        
-        # Apply the removal policy to retain the table on stack deletion
         reminders_table.apply_removal_policy(RemovalPolicy.RETAIN)
 
-        # Define DynamoDB table for CustomerDevices
         customer_devices_table = dynamodb.Table(
             self, 
             "CustomerDevices",
@@ -52,30 +51,36 @@ class RemindMeBackend(Stack):
         )
         feedback_table.apply_removal_policy(RemovalPolicy.RETAIN)
 
-
-        # Define an IAM Role for the EventBridge Scheduler
+        # ----------------------
+        # 2) IAM ROLE FOR SCHEDULER
+        # ----------------------
         scheduler_role = iam.Role(
             self, 
             "SchedulerRole",
             assumed_by=iam.ServicePrincipal("scheduler.amazonaws.com"),
             managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaRole")  # Allow Lambda invocation
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaRole")  
             ]
         )
 
-        # Add additional permissions for the EventBridge Target (if necessary)
+        # Allow the Scheduler role to invoke Lambda
         scheduler_role.add_to_policy(
             iam.PolicyStatement(
                 actions=["lambda:InvokeFunction"],
-                resources=["*"]  # Replace with specific ARNs of the Lambda functions if you want tighter security
+                resources=["*"]  
             )
         )
 
-        # Define SQS Queue for Failure Handling
+        # ----------------------
+        # 3) SQS QUEUE
+        # ----------------------
         reminders_queue = sqs.Queue(self, "RemindersQueue")
         reminders_queue.apply_removal_policy(RemovalPolicy.RETAIN)
 
-        # Define Lambda Function for set-reminder-by-text
+        # ----------------------
+        # 4) LAMBDAS
+        # ----------------------
+        # (a) set-reminder-by-text
         set_reminder_by_text_lambda = _lambda.Function(
             self,
             "SetReminderByTextFunction",
@@ -101,7 +106,7 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
-        # Define Lambda Function for set-reminder-manually
+        # (b) set-reminder-manually
         set_reminder_manually_lambda = _lambda.Function(
             self,
             "SetReminderManuallyFunction",
@@ -127,7 +132,7 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
-        # Define Lambda Function for manage_customer_device_info
+        # (c) manage_customer_device_info
         manage_customer_device_info_lambda = _lambda.Function(
             self,
             "ManageCustomerDeviceInfo",
@@ -148,7 +153,7 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
-        # Define Lambda Function for get-reminder-list
+        # (d) get-reminder-list
         get_reminder_list_lambda = _lambda.Function(
             self,
             "GetReminderListFunction",
@@ -170,7 +175,7 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
-        # Define Lambda Function for mark-reminder-complete
+        # (e) mark-reminder-complete
         mark_reminder_complete_lambda = _lambda.Function(
             self,
             "MarkReminderCompleteFunction",
@@ -191,7 +196,7 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
-        # Define Lambda Function for process-events
+        # (f) process-events
         process_events_lambda = _lambda.Function(
             self,
             "ProcessEventsFunction",
@@ -213,6 +218,7 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
+        # (g) submit-feedback
         submit_feedback_lambda = _lambda.Function(
             self,
             "SubmitFeedbackFunction",
@@ -233,7 +239,9 @@ class RemindMeBackend(Stack):
             architecture=_lambda.Architecture.X86_64
         )
 
-        # Grant Lambda permissions to DynamoDB table and SQS
+        # ----------------------
+        # 5) GRANT TABLE & QUEUE PERMISSIONS
+        # ----------------------
         reminders_table.grant_read_write_data(set_reminder_by_text_lambda)
         reminders_table.grant_read_write_data(set_reminder_manually_lambda)
         reminders_table.grant_read_write_data(manage_customer_device_info_lambda)
@@ -246,7 +254,11 @@ class RemindMeBackend(Stack):
         reminders_table.grant_read_data(process_events_lambda)
         feedback_table.grant_read_write_data(submit_feedback_lambda)
 
-        # Add EventBridge permissions to the Lambda roles
+        # ----------------------
+        # 6) EVENTBRIDGE / SCHEDULER PERMISSIONS
+        # ----------------------
+        # Give your "set reminder" Lambdas permission to create, update, or delete
+        # schedules and pass the scheduler_role, etc.
         set_reminder_by_text_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=[
@@ -256,7 +268,7 @@ class RemindMeBackend(Stack):
                     "scheduler:UpdateSchedule",
                     "scheduler:DeleteSchedule",
                     "scheduler:GetSchedule",
-                    "iam:PassRole"
+                    "iam:PassRole",
                 ],
                 resources=[
                     f"arn:aws:events:{self.region}:{self.account}:rule/*",
@@ -265,6 +277,7 @@ class RemindMeBackend(Stack):
                 ]
             )
         )
+
         set_reminder_manually_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=[
@@ -274,7 +287,7 @@ class RemindMeBackend(Stack):
                     "scheduler:UpdateSchedule",
                     "scheduler:DeleteSchedule",
                     "scheduler:GetSchedule",
-                    "iam:PassRole"
+                    "iam:PassRole",
                 ],
                 resources=[
                     f"arn:aws:events:{self.region}:{self.account}:rule/*",
@@ -283,12 +296,16 @@ class RemindMeBackend(Stack):
                 ]
             )
         )
+
+        # For describing or listing existing rules
         get_reminder_list_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["events:DescribeRule", "events:ListTagsForResource"],
                 resources=[f"arn:aws:events:{self.region}:{self.account}:rule/*"]
             )
         )
+
+        # For marking the reminder complete (disabling rules)
         mark_reminder_complete_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["events:DescribeRule", "events:DisableRule"],
@@ -296,42 +313,70 @@ class RemindMeBackend(Stack):
             )
         )
 
-        # Define API Gateway to trigger Lambda
-        api = apigateway.RestApi(self, "RemindersApi",
+        # IMPORTANT: Allow EventBridge Scheduler (or EventBridge) to invoke your Lambdas
+        # If using the Scheduler:
+        process_events_lambda.add_permission(
+            "AllowSchedulerInvokeSetManual",
+            principal=iam.ServicePrincipal("scheduler.amazonaws.com"),
+            action="lambda:InvokeFunction",
+            source_arn=f"arn:aws:scheduler:{self.region}:{self.account}:schedule/*"
+        )
+
+        # If some rules are in standard EventBridge (e.g., rule-based, not the Scheduler),
+        # allow event bridge to invoke process lambda.
+        process_events_lambda.add_permission(
+            "AllowEventBridgeInvokeProcessEvents",
+            principal=iam.ServicePrincipal("events.amazonaws.com"),
+            action="lambda:InvokeFunction",
+            source_arn=f"arn:aws:events:{self.region}:{self.account}:rule/*"
+        )
+
+        # ----------------------
+        # 7) API GATEWAY
+        # ----------------------
+        api = apigateway.RestApi(
+            self, 
+            "RemindersApi",
             default_cors_preflight_options={
-                "allow_origins": apigateway.Cors.ALL_ORIGINS,  # or specify allowed origins
-                "allow_methods": ["OPTIONS", "GET", "POST"],  # specify the methods you need
-                "allow_headers": ["Content-Type", "X-Amz-Date", "Authorization", "X-Api-Key", "X-Amz-Security-Token"]
+                "allow_origins": apigateway.Cors.ALL_ORIGINS,
+                "allow_methods": ["OPTIONS", "GET", "POST"],
+                "allow_headers": [
+                    "Content-Type",
+                    "X-Amz-Date",
+                    "Authorization",
+                    "X-Api-Key",
+                    "X-Amz-Security-Token"
+                ]
             }
         )
         api.apply_removal_policy(RemovalPolicy.RETAIN)
 
-        # API resource for set-reminder-by-text
+        # set-reminder-by-text
         set_reminder_by_text_resource = api.root.add_resource("set-reminder-by-text")
         set_reminder_by_text_integration = apigateway.LambdaIntegration(set_reminder_by_text_lambda)
         set_reminder_by_text_resource.add_method("POST", set_reminder_by_text_integration)
 
-        # API resource for set-reminder-manually
+        # set-reminder-manually
         set_reminder_manually_resource = api.root.add_resource("set-reminder-manually")
         set_reminder_manually_integration = apigateway.LambdaIntegration(set_reminder_manually_lambda)
         set_reminder_manually_resource.add_method("POST", set_reminder_manually_integration)
 
-        # API resource for get-reminder-list
+        # get-reminder-list
         get_reminder_list_resource = api.root.add_resource("get-reminder-list")
         get_reminder_list_integration = apigateway.LambdaIntegration(get_reminder_list_lambda)
         get_reminder_list_resource.add_method("GET", get_reminder_list_integration)
 
-        # API resource for mark-reminder-complete
+        # mark-reminder-complete
         mark_reminder_complete_resource = api.root.add_resource("mark-reminder-complete")
         mark_reminder_complete_integration = apigateway.LambdaIntegration(mark_reminder_complete_lambda)
         mark_reminder_complete_resource.add_method("POST", mark_reminder_complete_integration)
-        
-        # API resource for register-device-data
+
+        # manage-customer-device-info
         manage_customer_device_info_resource = api.root.add_resource("manage-customer-device-info")
         manage_customer_device_info_integration = apigateway.LambdaIntegration(manage_customer_device_info_lambda)
         manage_customer_device_info_resource.add_method("POST", manage_customer_device_info_integration)
 
-        # API Gateway resource for submit-feedback
+        # submit-feedback
         submit_feedback_resource = api.root.add_resource("submit-feedback")
         submit_feedback_integration = apigateway.LambdaIntegration(submit_feedback_lambda)
         submit_feedback_resource.add_method("POST", submit_feedback_integration)
