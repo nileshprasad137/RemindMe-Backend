@@ -4,7 +4,8 @@
 
 The backend for the RemindMe application is designed to support a serverless architecture, leveraging AWS services for scalable, efficient, and cost-effective operations. Below is the architecture diagram:
 
-<img width="655" alt="image" src="https://github.com/user-attachments/assets/0b8f3574-d485-441c-8784-5b06bde4bc81">
+<img width="686" alt="image" src="https://github.com/user-attachments/assets/56cc4d7c-17e6-49a6-90bb-ee01303d15e7" />
+
 
 ### Core AWS Components Used:
 - **AWS Lambda**: Hosts the core backend logic for handling reminders, customer and device management, and scheduling tasks.
@@ -218,8 +219,7 @@ The AWS CDK (Cloud Development Kit) simplifies cloud resource deployment. Below 
 
 - **Natural Language Parsing**: Accepts user input in plain text and generates EventBridge schedules.
 - **Reminder Management**: Stores and retrieves reminders with recurrence support.
-- **Device Management**: Syncs customer data across multiple devices.
-- **Google Authentication**: Provides secure login for syncing reminders.
+- **Device Management**: [WIP] Syncs customer data across multiple devices. 
 - **Scalability**: Serverless design ensures seamless scaling.
 
 ---
@@ -230,7 +230,6 @@ The project uses the following key dependencies:
 
 - **regex**: For parsing complex reminder patterns.
 - **croniter**: To generate cron expressions for EventBridge.
-- **google-auth**: For integrating Google login.
 
 ---
 
@@ -247,12 +246,4 @@ The project uses the following key dependencies:
 2. Create a feature branch.
 3. Commit your changes.
 4. Submit a pull request.
-
----
-
-## Contact
-
-For any issues or suggestions, feel free to [open an issue](https://github.com/your-repo/issues).
-
----
 
