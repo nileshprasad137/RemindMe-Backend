@@ -52,7 +52,7 @@ This guide assumes you have:
 
 ---
 
-### Step 1: Setup Environment Variables
+### Setup Environment Variables
 
 Create a `.env` file in the root directory and populate it with the following variables:
 
@@ -62,11 +62,13 @@ CDK_DEFAULT_REGION=<Your AWS Region>
 OPENAI_API_KEY=<Your OpenAI API Key>
 LAMBDA_LAYER_ARN=<ARN of the deployed Lambda Layer>
 EVENTBRIDGE_TARGET=<EventBridge target ARN>
+
+(More on this below)
 ```
 
 ---
 
-### Step 2: Install Dependencies
+### Install Dependencies
 
 1. Create and activate a virtual environment:
    ```bash
@@ -86,11 +88,11 @@ EVENTBRIDGE_TARGET=<EventBridge target ARN>
 
 ---
 
-### Step 3: Deploy Lambda Layer
+### Deploy Lambda Layer
 
 The Lambda Layer bundles shared dependencies (e.g., regex, croniter, google-auth). To deploy:
 
-#### Step 3.1: Prepare the Lambda Layer Directory
+#### Prepare the Lambda Layer Directory
 
 1. Create the necessary directory structure:
    ```bash
@@ -103,14 +105,14 @@ The Lambda Layer bundles shared dependencies (e.g., regex, croniter, google-auth
    pip install --platform manylinux2014_x86_64 --only-binary=:all: --no-cache -r requirements.txt -t python/lib/python3.11/site-packages/
    ```
 
-#### Step 3.2: Package the Lambda Layer
+#### Package the Lambda Layer
 
 1. Zip the contents of the `python` directory:
    ```bash
    zip -r lambda_layer.zip python
    ```
 
-#### Step 3.3: Deploy the Lambda Layer to AWS
+#### Deploy the Lambda Layer to AWS
 
 1. Publish the Lambda layer using the AWS CLI:
    ```bash
@@ -124,7 +126,7 @@ The Lambda Layer bundles shared dependencies (e.g., regex, croniter, google-auth
 
 2. Note the ARN from the CLI output, which you will use in your Lambda function.
 
-#### Step 3.4: Attach the Layer to Your Lambda Function
+#### Attach the Layer to Your Lambda Function
 
 In your AWS Lambda function code, reference the layer ARN:
 
@@ -153,7 +155,7 @@ set_reminder_lambda = _lambda.Function(
 
 ---
 
-### Step 4: CDK Commands
+### CDK Commands
 
 The AWS CDK (Cloud Development Kit) simplifies cloud resource deployment. Below are the key commands:
 
@@ -201,17 +203,6 @@ The AWS CDK (Cloud Development Kit) simplifies cloud resource deployment. Below 
 - **Root `requirements-dev.txt`**: Contains dependencies required for development and testing (e.g., pytest, boto3).
 - **Root `requirements.txt`**: Contains dependencies specific to the Lambda functions (e.g., boto3, openai).
 - **`lambda_layer/requirements.txt`**: Contains dependencies that are shared across multiple Lambda functions and packaged into a Lambda Layer.
-
----
-
-### Step 5: Testing
-
-1. Run the unit tests in the `tests/` directory to validate functionality:
-   ```bash
-   pytest backend/tests/
-   ```
-
-2. Use tools like Postman to test deployed Lambda endpoints.
 
 ---
 
