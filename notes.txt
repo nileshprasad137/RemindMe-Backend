@@ -1,0 +1,105 @@
+Here's a summary of the backend design decisions based on the given context:
+
+1. Modularized Lambda Functions
+    Each lambda function has a single responsibility, such as:
+
+ - set-reminder-by-text: Handles natural language parsing, schedules reminders in EventBridge or Scheduler, and stores them in DynamoDB.
+ - get-reminders: Queries DynamoDB to fetch past/upcoming reminders, optionally retrieving EventBridge schedules for future reminders.
+
+Benefits:
+ - Scalability: Each function can scale independently based on demand.
+ - Ease of Maintenance: Issues are isolated to specific functions, making debugging and enhancements easier.
+
+2. DynamoDB as the Primary Data Store
+
+Structure:
+ - Partition Key (PK): CUSTOMER#{device_id}
+ - Sort Key (SK): REMINDER#{reminder_id}
+
+Additional Attributes: start_date, time, repeat_frequency, is_completed, updated_at, eventbridge_expression, etc.
+
+Benefits:
+
+ - Flexibility: DynamoDB's schema-less design allows easy addition of new fields.
+ - Performance: Efficient querying for reminders by device_id and filtering by is_completed or dates.
+
+3. EventBridge for Scheduling
+
+EventBridge Rule Types:
+ - cron expressions for precise scheduling (e.g., every Monday at 10 AM).
+ - rate expressions for recurring intervals (e.g., every 2 days).
+ - at expressions for one-time events.
+Decisions:
+
+One-Time Reminders: Use at expressions.
+Recurring Reminders: Use rate or cron expressions based on repeat frequency.
+Event Parsing: EventBridge expressions are parsed using croniter or regex to generate next occurrences.
+Benefits:
+
+Reliability: Native AWS service ensures high availability.
+Customizability: Supports complex schedules like specific days of the week or month.
+4. Scheduler for One-Time Events
+AWS Scheduler is used to trigger single-use reminders when a one-time reminder is created.
+Why?
+Scheduler provides a lightweight alternative for single-event triggering, avoiding unnecessary EventBridge rule management.
+5. Handling Natural Language Parsing
+Model Used: OpenAI gpt-3.5-turbo for text-to-JSON parsing.
+Steps:
+Parse text into a structured Reminder object (e.g., task, start date, time, repeat frequency).
+Default handling for missing time (11:00 AM) or start date (today).
+Pydantic models ensure data integrity and structure validation.
+Benefits:
+
+Flexibility: Can handle various natural language formats like "every alternate day" or "next Monday at 5 PM."
+Extensibility: The logic can be improved for additional natural language patterns.
+6. Error Handling
+DynamoDB Writes: If reminders cannot be directly scheduled, they are added to an SQS queue for error handling and retry.
+ClientError Handling: Specific AWS exceptions (e.g., EventBridge failures) are logged, and fallback actions (like SQS message enqueue) are performed.
+Benefits:
+
+Resilience: Ensures failed operations are retried or logged for manual review.
+Transparency: Clear logging of errors for debugging.
+7. API Design
+GET /get-reminder-list
+
+Query reminders filtered by past or upcoming.
+Supports include_schedule to fetch next occurrences using parsed EventBridge expressions.
+POST /set-reminder-by-text
+
+Accepts natural language input (reminder_data.text) and processes it into a structured reminder.
+Request/Response Structure:
+
+JSON-based, with clear field names (start_date, time, repeat_frequency) and default values for missing inputs.
+Example response includes reminder_id, reminder_scheduled_message, and next_occurrences.
+Benefits:
+
+Consistency: JSON response formats are easy to consume by the frontend.
+Simplicity: Separate endpoints for creating, querying, and managing reminders.
+8. Repeat Frequency and Flexibility
+Repeat Frequency: Handles both fixed intervals (daily, weekly) and custom schedules (selected_days_of_week).
+Custom Day Mapping:
+AWS day-of-week (1=Sunday) mapped to croniter (0=Sunday) for accurate cron parsing.
+Benefits:
+
+Flexibility: Supports complex user requirements, like reminders on specific days of the week or month.
+Standardization: All custom frequencies are converted into AWS-compatible cron/rate expressions.
+9. Parsing EventBridge Expressions
+Goal: Generate next occurrences of reminders for upcoming schedules.
+Steps:
+Use croniter for cron expressions.
+Use regex for rate expressions (e.g., "rate(2 days)").
+Return parsed occurrences to the frontend for display.
+Benefits:
+
+User Experience: Users can see exact upcoming occurrences of reminders.
+Predictability: Ensures reminders are consistent with their configured schedule.
+10. CORS and Security
+CORS Enabled: Allows cross-origin requests from the frontend.
+Security Measures:
+Headers restricted to specific origins/domains.
+IAM roles ensure that only authorized services (like Scheduler, EventBridge) can interact with the system.
+Overall Benefits
+Scalable and Modular: Lambda functions can handle independent tasks and scale individually.
+Performance Optimized: DynamoDB and EventBridge ensure low-latency, high-throughput operations.
+Future-Proof: Design can easily accommodate new features like more complex scheduling or integration with other AWS services.
+These decisions ensure a robust and extensible backend for your reminder system.
