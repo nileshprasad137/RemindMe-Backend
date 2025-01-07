@@ -2,7 +2,7 @@
 
 ## Overall Architecture
 
-The backend for the RemindMe application is designed to support a serverless architecture, leveraging AWS services for scalable, efficient, and cost-effective operations. Below is the architecture diagram:
+This is backend of the "RemindMe" application which enables users to set, manage, and sync(WIP) reminders effortlessly using natural language input. It leverages a serverless architecture powered by AWS services, ensuring scalable, efficient, and cost-effective operations.  
 
 <img width="686" alt="image" src="https://github.com/user-attachments/assets/56cc4d7c-17e6-49a6-90bb-ee01303d15e7" />
 
