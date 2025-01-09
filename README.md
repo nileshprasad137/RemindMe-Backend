@@ -62,6 +62,8 @@ CDK_DEFAULT_REGION=<Your AWS Region>
 OPENAI_API_KEY=<Your OpenAI API Key>
 LAMBDA_LAYER_ARN=<ARN of the deployed Lambda Layer>
 EVENTBRIDGE_TARGET=<EventBridge target ARN>
+SERVICE_ACCOUNT_JSON=<JSON OF SERVICE ACCOUNT>
+FIREBASE_PROJECT_ID=<FIREBASE PROJECT ID FOR SENDING PNS ON ANDROID FROM FCM.>
 
 (More on this below)
 ```
@@ -148,7 +150,7 @@ set_reminder_lambda = _lambda.Function(
         "REMINDERS_TABLE_NAME": reminders_table.table_name,
         "REMINDERS_QUEUE_ARN": reminders_queue.queue_arn,
         "REMINDERS_QUEUE_URL": reminders_queue.queue_url,
-        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY")
+        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
     },
 )
 ```
