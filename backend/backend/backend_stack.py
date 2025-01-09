@@ -213,7 +213,9 @@ class RemindMeBackend(Stack):
             ],
             environment={
                 "CUSTOMER_DEVICES_TABLE_NAME": customer_devices_table.table_name,
-                "REMINDERS_TABLE_NAME": reminders_table.table_name
+                "REMINDERS_TABLE_NAME": reminders_table.table_name,
+                "SERVICE_ACCOUNT_JSON": os.getenv("SERVICE_ACCOUNT_JSON"),
+                "FIREBASE_PROJECT_ID": os.getenv("FIREBASE_PROJECT_ID"),
             },
             architecture=_lambda.Architecture.X86_64
         )

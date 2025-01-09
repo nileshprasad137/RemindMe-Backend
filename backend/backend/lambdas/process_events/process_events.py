@@ -6,19 +6,27 @@ from google.oauth2 import service_account
 import google.auth.transport.requests
 
 # Configuration
-SERVICE_ACCOUNT_FILE = 'service_account.json'
-SCOPES = ['https://www.googleapis.com/auth/firebase.messaging']
-FIREBASE_PROJECT_ID = 'remindme-app-np137'
+FIREBASE_PROJECT_ID = os.environ["FIREBASE_PROJECT_ID"]
 
 # Initialize AWS resources
 dynamodb = boto3.resource("dynamodb")
 CUSTOMER_DEVICES_TABLE_NAME = os.environ["CUSTOMER_DEVICES_TABLE_NAME"]
 REMINDERS_TABLE_NAME = os.environ["REMINDERS_TABLE_NAME"]
 
+
+def get_service_account():
+    """Fetch the service account JSON from environment variable."""
+    service_account_json = os.environ["SERVICE_ACCOUNT_JSON"]
+    if not service_account_json:
+        raise ValueError("SERVICE_ACCOUNT_JSON not found.")
+    return json.loads(service_account_json)
+
+
 def get_access_token():
     """Generate an OAuth 2.0 access token for FCM using a service account."""
-    credentials = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES
+    service_account_info = get_service_account()
+    credentials = service_account.Credentials.from_service_account_info(
+        service_account_info, scopes=['https://www.googleapis.com/auth/firebase.messaging']
     )
     request = google.auth.transport.requests.Request()
     credentials.refresh(request)
