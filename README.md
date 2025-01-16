@@ -6,6 +6,10 @@ This is backend of the "RemindMe" application which enables users to set, manage
 
 <img width="686" alt="image" src="https://github.com/user-attachments/assets/56cc4d7c-17e6-49a6-90bb-ee01303d15e7" />
 
+## App in action
+![app (3)](https://github.com/user-attachments/assets/47e2c3b4-8810-47d5-a7ff-fe7f92e500dc)
+
+
 
 ### Core AWS Components Used:
 - **AWS Lambda**: Hosts the core backend logic for handling reminders, customer and device management, and scheduling tasks.
