@@ -141,9 +141,13 @@ def handler(event, context):
             end_date_str = reminder.get("end_date", None)
             reminder_data = reminder.copy()
 
-            # Check if the reminder is past based on the end_date
+            # **Handle both YMD and DMY formats dynamically**
             if end_date_str and end_date_str != "None":
-                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                end_date_parsed = dateparser.parse(end_date_str, settings={'DATE_ORDER': 'YMD'}) or dateparser.parse(end_date_str, settings={'DATE_ORDER': 'DMY'})
+                if not end_date_parsed:
+                    print(f"Error parsing end_date: {end_date_str}")
+                    continue
+                end_date = end_date_parsed.date()
                 is_past = end_date < current_date
             else:
                 is_past = is_completed
@@ -151,17 +155,29 @@ def handler(event, context):
             # Include schedule occurrences if required and reminder is not past
             if include_schedule and not is_past:
                 eventbridge_expression = reminder.get("eventbridge_expression", None)
-                start_date = reminder.get("start_date")
+                start_date_str = reminder.get("start_date")
                 time_str = reminder.get("time")
 
-                if eventbridge_expression and start_date and time_str:
-                    time_str = dateparser.parse(time_str).strftime('%I:%M %p')
-                    start_time = datetime.strptime(f"{start_date} {time_str}", "%d-%m-%Y %I:%M %p")
-                    # Get the current datetime
-                    now = datetime.now()
-                    # Ensure start_time is the maximum of now and start_time
-                    start_time = max(start_time, now)
+                if eventbridge_expression and start_date_str and time_str:
+                    # Parse time dynamically
+                    time_parsed = dateparser.parse(time_str)
+                    if not time_parsed:
+                        print(f"Error parsing time: {time_str}")
+                        continue
+                    
+                    time_str_formatted = time_parsed.strftime('%I:%M %p')
 
+                    # Handle both YMD and DMY formats dynamically
+                    start_date_parsed = dateparser.parse(start_date_str, settings={'DATE_ORDER': 'YMD'}) or dateparser.parse(start_date_str, settings={'DATE_ORDER': 'DMY'})
+                    if not start_date_parsed:
+                        print(f"Error parsing start_date: {start_date_str}")
+                        continue
+
+                    start_time = datetime.strptime(f"{start_date_parsed.strftime('%Y-%m-%d')} {time_str_formatted}", "%Y-%m-%d %I:%M %p")
+                    
+                    # Ensure start_time is not in the past
+                    now = datetime.now()
+                    start_time = max(start_time, now)
 
                     try:
                         next_occurrences = parse_eventbridge_expression(
